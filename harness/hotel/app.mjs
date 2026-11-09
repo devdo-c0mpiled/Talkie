@@ -6,7 +6,7 @@ function render(){
  for(const leg of ['customer','hotel']){$(leg).replaceChildren(...state.events.filter(e=>e.leg===leg).map(e=>{const a=document.createElement('article');a.className='message '+e.speaker;const h=document.createElement('span');h.textContent=`${e.id} · ${e.speaker==='ai'?'AI':e.speaker==='customer'?'Allen':'호텔 직원'} · ${e.language}`;const p=document.createElement('p');p.textContent=e.text;a.append(h,p);return a}));$(leg).scrollTop=$(leg).scrollHeight;}
  $('next').disabled=$('all').disabled=blocked||state.stage===script.length;
 }
-function reset(){script=makeScript({variant:$('variant').value,language:$('language').value,result:$('result').value});state=initialState({contactRef:$('fault').value==='missing'?null:'mock-verified-contact'});blocked=false;$('error').hidden=true;document.querySelectorAll('#rubric input').forEach(x=>x.checked=false);$('review').textContent='미검토';render();}
+function reset(){script=makeScript({variant:$('variant').value,language:$('language').value,result:$('result').value});state=initialState({contactRef:$('fault').value==='missing'?null:'mock-verified-contact'});blocked=false;$('error').hidden=true;$('error').textContent='';document.querySelectorAll('#rubric input').forEach(x=>x.checked=false);$('review').textContent='미검토';render();}
 function next(){const l=structuredClone(script[state.stage]);if(!l||blocked)return;const f=$('fault').value;
  if(f==='permission'&&l.event==='permission'){l.allowed=false;l.text='AI를 통한 문의는 받지 않습니다.';}
  if(f==='contact'&&l.event==='contact_consent'){l.allowed=false;l.text=state.customerLanguage==='en'?'No, please don’t share my contact details.':'아니요, 연락처는 전달하지 마세요.';}
