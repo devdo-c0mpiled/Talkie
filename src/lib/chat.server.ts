@@ -36,9 +36,14 @@ How to reply
 
 const CALLS_PROMPT = `Calling a business
 - You can phone a Korean business for the traveler with ${callBusinessDef.name}. A Korean-speaking voice agent makes the call; you are not on it.
-- Only call a number the traveler typed in this chat. If you do not have the number, ask for it. Before calling, make sure you know what to ask or book and every detail the business will need (date, time, party size, name to book under). Ask the traveler for whatever is missing first.
-- The app asks the traveler to approve each call, so do not ask "shall I call?" yourself: call the tool once you have what you need.
+- Only call a number the traveler typed in this chat. If you do not have the number, ask for it. A supplied number and a clear call purpose are enough to call. When the traveler says "call first", "일단 전화해", or repeats a request to dial, invoke call_business immediately without asking for dates, guest count, room type or booking name. Pass known facts only and explain missing details in instructionsKo. Missing reservation details block committing a reservation, not making an inquiry call.
+- Set conversationMode to hotel_roleplay for an explicit request to act as hotel staff, including follow-up messages saying only "call first". Preserve the previously supplied phone number, role and business across turns. Never infer a reservation change from a new booking request.
+- Do not invent a test, demo, or rehearsal purpose in the call instructions. Carry the customer’s actual request and distinguish availability inquiries from authorized booking. Normally the Korean agent speaks to hotel staff on the traveler’s behalf. If the user explicitly requests a hotel-staff role-play at their supplied number, allow that role-play and pass that requested role to the voice agent instead of refusing. Never represent a role-play reservation as a real hotel booking.
+- The app asks the traveler to approve each call, so do not ask "shall I call?" yourself: invoke call_business as soon as a number and purpose are known. Do not repeat a request for booking details after an explicit call-first instruction.
 - When the tool returns status "calling", tell the traveler in one sentence that the call is on its way and that you will report back. For "invalid-number", ask them to check the number. For "failed", say the call could not be placed and offer to try again.
+- The get_call_result reservation object is the persisted outcome. Use its status and fields as the source of truth; never upgrade inquiry/requested/unknown to confirmed.
+- In the post-call summary, prioritize the customer’s latest explicit correction in the transcript: "신규 예약" overrides an earlier change assumption. Do not ask for a number already supplied or ask new-versus-change again after that correction. For hotel_roleplay, summarize the collected request without claiming a real hotel confirmation.
+- When the business explicitly confirms a reservation, tell the traveler in their language that it is confirmed and summarize the confirmed dates, guests and any reference actually provided. If only availability or a pending request was reported, say so clearly.
 - A message starting with ${CALL_ENDED_MARKER} comes from the app, not the traveler: the call it names has ended. Call ${getCallResultDef.name} with that reference, then tell the traveler what happened in their language. The transcript is in Korean; lines are labelled "Tokie agent" (the voice agent) and "Business", or unlabelled with the agent speaking first. The traveler may have watched the Korean lines appear live, so focus on what they mean. Report only what the transcript shows; say clearly whether the booking was confirmed, refused or left open, and what the traveler should do next. If there is no transcript, say how the call ended (for example nobody answered) and offer to try again. If the traveler asks about a call that is still going (state "calling"), say it is still in progress. Never mention the marker or the reference.`
 
 const NO_CALLS_PROMPT = `Calling a business
@@ -50,10 +55,13 @@ const getCallResult = getCallResultDef.server(async ({ call }) => {
 })
 
 // Runs only after the traveler has approved the call in the chat screen (needsApproval on the definition).
-const callBusiness = callBusinessDef.server(async ({ phoneNumber, businessName, instructionsKo }) => {
+const callBusiness = callBusinessDef.server(async ({ phoneNumber, businessName, instructionsKo, conversationMode }) => {
   const to = normalizeKoreanNumber(phoneNumber)
   if (!to) return { status: 'invalid-number' as const }
-  const placed = await placeCall(to, `전화 상대: ${businessName}\n요청 사항: ${instructionsKo}`)
+  const role = conversationMode === 'hotel_roleplay'
+    ? '통화 모드: hotel_roleplay. 당신은 호텔 예약 상담원 역할이며 상대는 예약하려는 고객입니다. 고객 대신 호텔에 문의한다는 말을 하지 마세요. 고객이 말하는 신규 예약/변경/취소 의도가 이전 요청보다 우선합니다. 신규 예약을 변경으로 취급하지 마세요. 예약 희망 사항을 한 번에 하나씩 물어보세요.'
+    : '통화 모드: business_call. 당신은 고객을 대신해 실제 업장 직원에게 문의하는 AI 전화비서입니다.'
+  const placed = await placeCall(to, `${role}\n업장명: ${businessName}\n요청 사항: ${instructionsKo}`, conversationMode, businessName)
   if ('error' in placed) return { status: 'failed' as const, reason: placed.error }
   return { status: 'calling' as const, call: await toCallReference(placed.callId) }
 })

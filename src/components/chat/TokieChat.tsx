@@ -13,6 +13,7 @@ import { LineIcon } from '../landing/LineIcon'
 import { HotelRehearsal } from './HotelRehearsal'
 import { HotelWorkflowCard } from './HotelWorkflowCard'
 import { hotelInquiryDef, hotelStatusDef } from '../../lib/hotel-workflow-tools'
+import type {ReservationResult} from '../../lib/call-result'
 import type { Workflow } from '../../lib/hotel-workflow'
 
 const DIGIT_HEIGHT = 34
@@ -116,6 +117,12 @@ type CallLiveProps = {
 function CallLive({ reference, business, onDone, onActivity }: CallLiveProps) {
   const [state, setState] = useState<CallState>('calling')
   const [lines, setLines] = useState<CallLine[]>([])
+  const [lookupError,setLookupError]=useState(false)
+  const [resultPending,setResultPending]=useState(false)
+  const [reservation,setReservation]=useState<ReservationResult|null>(null)
+  const [retry,setRetry]=useState(0)
+  const [recipient,setRecipient]=useState('Them')
+  const [outcome,setOutcome]=useState('')
   // The latest callbacks, so the polling loop below never has to restart for them.
   const callbacks = useRef({ onDone, onActivity })
   callbacks.current = { onDone, onActivity }
@@ -124,13 +131,25 @@ function CallLive({ reference, business, onDone, onActivity }: CallLiveProps) {
     let stopped = false
     let timer: ReturnType<typeof setTimeout>
     let seen = ''
+    let failures=0
     async function poll() {
       let next: CallState = 'calling'
       try {
-        const response = await fetch(`/api/calls/${encodeURIComponent(reference)}`)
+        const response = await fetch(`/api/calls/${encodeURIComponent(reference)}`,{signal:AbortSignal.timeout(35000)})
         if (response.ok) {
-          const progress = (await response.json()) as { state: CallState; lines: CallLine[] }
-          next = progress.state
+          const progress = (await response.json()) as { state: CallState; lines: CallLine[]; outcome:string; conversationMode?:string; reservation?:ReservationResult; resultPending?:boolean }
+          if(stopped)return
+          setLookupError(false)
+          setResultPending(Boolean(progress.resultPending))
+          setReservation(progress.reservation??null)
+          setState(progress.state)
+          setOutcome(progress.outcome)
+          setRecipient(progress.conversationMode==='hotel_roleplay'?'Customer':'Hotel staff')
+          if(progress.resultPending) {
+            failures++
+            if(failures>=4){setLookupError(true);return}
+          } else failures=0
+          next = progress.resultPending?'calling':progress.state
           const signature = JSON.stringify(progress.lines)
           if (!stopped && signature !== seen) {
             seen = signature
@@ -138,11 +157,13 @@ function CallLive({ reference, business, onDone, onActivity }: CallLiveProps) {
             callbacks.current.onActivity()
           }
         } else {
-          // A call that can no longer be looked up will not get any further.
-          next = 'done'
+          throw Error('Call status unavailable')
         }
       } catch {
-        // Network hiccup: try again on the next tick.
+        if(stopped)return
+        setLookupError(true)
+        failures++
+        if(failures>=4)return
       }
       if (stopped) return
       if (next !== 'done') {
@@ -157,17 +178,27 @@ function CallLive({ reference, business, onDone, onActivity }: CallLiveProps) {
       stopped = true
       clearTimeout(timer)
     }
-  }, [reference])
+  }, [reference,retry])
 
   return (
     <div className="ch-card ch-call">
       <p className="ch-card-eyebrow">{state === 'calling' ? <><span className="ch-live" aria-hidden="true" /> Live call</> : 'Call finished'}</p>
       <p className="ch-card-title">{business}</p>
+      {state==='done' && outcome && outcome!=='completed' && <p className="ch-card-meta">{{'no-answer':'No answer',busy:'Line busy',rejected:'Call rejected',canceled:'Call cancelled',failed:'Call failed'}[outcome]??outcome}</p>}
+      {lookupError && <p role="status">Couldn’t retrieve the call status. <button type="button" onClick={()=>{setLookupError(false);setRetry(x=>x+1)}}>Retry</button></p>}
+      {resultPending && !lookupError && <p role="status">Checking the call result…</p>}
+      {reservation && <div className="ch-card-meta" aria-label="Reservation result">
+        <p>{{inquiry:'Inquiry only',requested:'Request received',confirmed:'Reservation confirmed',changed:'Reservation updated',cancelled:'Reservation cancelled',declined:'Request declined',unknown:'Result unconfirmed'}[reservation.status]}</p>
+        {(reservation.checkIn||reservation.checkOut)&&<p>{reservation.checkIn??'—'} → {reservation.checkOut??'—'}</p>}
+        {reservation.guests&&<p>{reservation.guests} guests</p>}
+        {reservation.guestName&&<p>{reservation.guestName}</p>}
+        {reservation.reservationNumber&&<p>{reservation.reservationNumber}</p>}
+      </div>}
       {lines.length > 0 ? (
         <ol className="ch-call-lines" lang="ko">
           {lines.map(({ id, role, text, final }) => (
             <li key={id} className={final ? undefined : 'is-partial'}>
-              <span lang="en">{role === 'agent' ? 'Tokie' : 'Them'}</span>
+              <span lang="en">{role === 'agent' ? 'Tokie' : recipient}</span>
               {text}
             </li>
           ))}
@@ -184,10 +215,21 @@ type Row = { key: string; mine: boolean } & ({ text: string } | { card: KoreanNu
 
 export function TokieChat({ hotelHarness = false, hotelScenario = 'booking', onHotelScenarioChange, hotelWorkflow = hotelHarness }: { hotelWorkflow?: boolean; hotelHarness?: boolean; hotelScenario?: string; onHotelScenarioChange?: (id:string)=>void }) {
   // One conversation per visit: the id only has to stay stable while this screen is mounted.
-  const [threadId] = useState(() => crypto.randomUUID())
-  const { messages, sendMessage, isLoading, error, interrupts } = useChat({
+  const [threadId,setThreadId] = useState(() => crypto.randomUUID())
+  const restored=useRef(false)
+  const pendingReport=useRef<string|null>(null)
+  const [reportError,setReportError]=useState(false)
+  const { messages, setMessages, sendMessage, isLoading, error, interrupts } = useChat({
     connection: fetchServerSentEvents(hotelWorkflow ? '/api/hotel-chat' : '/api/chat'),
     threadId,
+    onFinish:(message)=>{
+      if(pendingReport.current && message.parts.some(p=>p.type==='text'&&p.content.trim())){
+        reportedCalls.current.add(pendingReport.current)
+        pendingReport.current=null
+        setReportError(false)
+      }
+    },
+    onError:()=>{if(pendingReport.current){pendingReport.current=null;setReportError(true)}},
     tools: hotelWorkflow ? [hotelInquiryDef,hotelStatusDef] : [issueKoreanNumberDef, callBusinessDef],
   })
   const [draft, setDraft] = useState('')
@@ -197,6 +239,22 @@ export function TokieChat({ hotelHarness = false, hotelScenario = 'booking', onH
   const reportedCalls = useRef(new Set<string>())
   const feed = useRef<HTMLDivElement>(null)
   const input = useRef<HTMLInputElement>(null)
+  useEffect(()=>{
+    if(hotelWorkflow){restored.current=true;return}
+    try {
+      const raw=sessionStorage.getItem('tokie.chat.v2')
+      if(raw){const saved=JSON.parse(raw);if(Array.isArray(saved.messages)&&typeof saved.threadId==='string'){
+        setThreadId(saved.threadId);setMessages(saved.messages)
+        reportedCalls.current=new Set(Array.isArray(saved.reported)?saved.reported:[])
+      }}
+    }catch{}
+    restored.current=true
+  },[])
+  useEffect(()=>{
+    if(!restored.current||hotelWorkflow||!messages.length)return
+    try{sessionStorage.setItem('tokie.chat.v2',JSON.stringify({threadId,messages,reported:[...reportedCalls.current]}))}catch{}
+  },[messages,threadId,isLoading,hotelWorkflow])
+
 
   const [hotelState,setHotelState]=useState<Workflow|null>(null)
   const [hotelError,setHotelError]=useState<string|null>(null)
@@ -268,10 +326,10 @@ export function TokieChat({ hotelHarness = false, hotelScenario = 'booking', onH
   // Once a call is over, quietly ask Tokie to look up what happened and tell the traveler.
   useEffect(() => {
     const next = endedCalls.find((reference) => !reportedCalls.current.has(reference))
-    if (!next || isLoading) return
-    reportedCalls.current.add(next)
-    void sendMessage(`${CALL_ENDED_MARKER} ${next}`)
-  }, [endedCalls, isLoading, sendMessage])
+    if (!next || isLoading || pendingReport.current || reportError) return
+    pendingReport.current=next
+    void sendMessage(`${CALL_ENDED_MARKER} ${next}`).then(()=>{if(pendingReport.current===next){pendingReport.current=null;setReportError(true)}}).catch(()=>{pendingReport.current=null;setReportError(true)})
+  }, [endedCalls, isLoading, sendMessage,reportError])
 
   function scrollToEnd() {
     // After the next paint, so content added in this render is included.
@@ -345,6 +403,7 @@ export function TokieChat({ hotelHarness = false, hotelScenario = 'booking', onH
         {typing && !approval && <div className="ch-row" aria-hidden="true"><TokieAvatar /><span className="ch-typing"><i /><i /><i /></span></div>}
         {hasNumber && !isLoading && <p className="ch-status"><span className="ch-live" aria-hidden="true" />Waiting for calls · I'll answer for you</p>}
         {hotelWorkflow && <HotelWorkflowCard state={hotelState} busy={isLoading || hotelBusy} error={hotelError} onDecide={decideHotel} />}
+        {reportError && !isLoading && <p role="status">Couldn’t deliver the call summary. <button type="button" onClick={()=>setReportError(false)}>Retry</button></p>}
         {error && !isLoading && <p className="ch-error" role="alert">Tokie couldn’t reply. Please try again.</p>}
       </main>
 

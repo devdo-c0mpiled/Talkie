@@ -14,6 +14,7 @@ declare namespace Cloudflare {
     CLAWOPS_ACCOUNT_ID?: string
     CLAWOPS_FROM_NUMBER?: string
     CLAWOPS_AGENT_ID?: string
+    CLAWOPS_ROLEPLAY_AGENT_ID?: string
     AI?: Ai
   }
 }

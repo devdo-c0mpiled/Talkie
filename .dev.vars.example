@@ -13,3 +13,5 @@ CLAWOPS_AGENT_ID=
 
 # Enable only for the hotel scenario rehearsal (mock hotel, local/test DB).
 HOTEL_SANDBOX_ENABLED=false
+
+CLAWOPS_ROLEPLAY_AGENT_ID=
