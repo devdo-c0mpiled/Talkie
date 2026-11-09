@@ -2,6 +2,7 @@ import { fetchServerSentEvents, useChat } from '@tanstack/ai-react'
 import { useEffect, useRef, useState } from 'react'
 import type { CSSProperties, SubmitEvent } from 'react'
 import tokie from '../../assets/landing/tokie.webp'
+import type { CallResultLink } from '../../lib/call-result'
 import {
   CALL_ENDED_MARKER,
   CALL_INTENT_STORAGE_KEY,
@@ -122,6 +123,28 @@ function CallApproval({ request, onDecide }: { request: CallRequest; onDecide: (
         <button type="button" className="ch-btn-primary" onClick={() => onDecide(true)}><LineIcon name="phone" size={16} />Call now</button>
         <button type="button" className="ch-btn-soft" onClick={() => onDecide(false)}>Not now</button>
       </div>
+    </div>
+  )
+}
+
+/** Link to the page a finished call ended in, drawn like the preview of a link in a text message. */
+function ResultLink({ id, status, business }: CallResultLink) {
+  const booked = status === 'confirmed' || status === 'pending'
+  const title = booked ? `Your booking at ${business}` : `Your call with ${business}`
+  const href = `/b/${id}`
+  // Opens beside the chat: the conversation only lives in this tab.
+  return (
+    <div className="ch-result">
+      <a className="ch-link" href={href} target="_blank" rel="noopener" aria-label={`Open ${title.charAt(0).toLowerCase()}${title.slice(1)}`}>
+        <span className="ch-link-art" aria-hidden="true"><img src={tokie} alt="" /></span>
+        <span className="ch-link-text">
+          {status === 'confirmed' && <span className="ch-badge ch-badge--ok"><LineIcon name="check" size={14} />Confirmed</span>}
+          {status === 'pending' && <span className="ch-badge">Pending</span>}
+          <span className="ch-link-title">{title}</span>
+          <span className="ch-link-host">{window.location.host}</span>
+        </span>
+      </a>
+      <a className="ch-link-url" href={href} target="_blank" rel="noopener">{window.location.host}{href}</a>
     </div>
   )
 }
@@ -278,8 +301,8 @@ function CallLive({ reference, business, phoneNumber, onDone, onActivity }: Call
   )
 }
 
-/** One line of the feed: a text bubble, number card, or call with its live transcript. */
-type Row = { key: string; mine: boolean } & ({ text: string } | { card: KoreanNumber } | { call: string; business: string; phoneNumber?: string })
+/** One line of the feed: a text bubble, the number card, a call with its live transcript, or the link to what it ended in. */
+type Row = { key: string; mine: boolean } & ({ text: string } | { card: KoreanNumber } | { call: string; business: string; phoneNumber?: string } | { result: CallResultLink })
 
 export function TokieChat() {
   // One conversation per visit: the id only has to stay stable while this screen is mounted.
@@ -312,7 +335,7 @@ export function TokieChat() {
   }, [sendMessage])
 
   // What the feed shows. Reasoning, tool bookkeeping and the app's own call-ended notes stay hidden.
-  const rows = messages.flatMap((message) =>
+  const parts = messages.flatMap((message) =>
     message.parts.flatMap((part, index): Row[] => {
       const key = `${message.id}-${index}`
       const mine = message.role === 'user'
@@ -327,12 +350,30 @@ export function TokieChat() {
         const request = part.input as CallRequest | undefined
         if (placed?.status === 'calling' && placed.call) return [{ key, mine: false, call: placed.call, business: request?.businessName ?? 'the business', phoneNumber: request?.phoneNumber }]
       }
+      if (part.name === getCallResultDef.name && part.output?.result) return [{ key, mine: false, result: part.output.result }]
       return []
     }),
   )
+  // Tokie's sentence comes first and the link it points to goes under it, though the lookup ran before the reply:
+  // a link waits until Tokie's turn is over.
+  const rows: Row[] = []
+  let links: Row[] = []
+  for (const row of parts) {
+    if ('result' in row) {
+      links.push(row)
+      continue
+    }
+    if (row.mine) {
+      rows.push(...links)
+      links = []
+    }
+    rows.push(row)
+  }
+  rows.push(...links)
   // At most one call waits for approval at a time.
   const approval = interrupts.flatMap((interrupt) => (interrupt.kind === 'tool-approval' && interrupt.toolName === callBusinessDef.name ? [interrupt] : []))[0]
-  const lastRow = rows.at(-1)
+  // A result link sits under the reply it belongs to, so it says nothing about whether that reply has started.
+  const lastRow = rows.filter((row) => !('result' in row)).at(-1)
   // Tokie is "typing" until its reply to the latest message starts to show.
   const typing = isLoading && (!lastRow || lastRow.mine || !('text' in lastRow))
   const hasNumber = rows.some((row) => 'card' in row)
@@ -402,6 +443,7 @@ export function TokieChat() {
           if ('call' in row) {
             return <CallLive key={row.key} reference={row.call} business={row.business} phoneNumber={row.phoneNumber} onDone={(reference, answered) => { setEndedCalls((current) => [...current, reference]); if (answered) setCalledBusiness(row.business) }} onActivity={scrollToEnd} />
           }
+          if ('result' in row) return <div key={row.key} className="ch-row ch-row--wide"><TokieAvatar /><ResultLink {...row.result} /></div>
           return (
             <div key={row.key} className={row.mine ? 'ch-row ch-row--me' : 'card' in row ? 'ch-row ch-row--wide' : 'ch-row'}>
               {!row.mine && <TokieAvatar />}

@@ -1,10 +1,16 @@
-// Creates the ClawOps voice agent that makes Tokie's outbound calls and prints its id.
+// Creates or updates the ClawOps voice agent that makes Tokie's outbound calls.
 // Run once per ClawOps account:  node --env-file=.dev.vars scripts/setup-clawops-agent.mjs
 // Then set CLAWOPS_AGENT_ID to the printed id (.dev.vars locally, a Worker secret in production).
+// To update the configured agent instead: node --env-file=.env scripts/setup-clawops-agent.mjs --update
 
-const { CLAWOPS_API_KEY, CLAWOPS_ACCOUNT_ID } = process.env
+const { CLAWOPS_API_KEY, CLAWOPS_ACCOUNT_ID, CLAWOPS_AGENT_ID } = process.env
 if (!CLAWOPS_API_KEY || !CLAWOPS_ACCOUNT_ID) {
   console.error('CLAWOPS_API_KEY and CLAWOPS_ACCOUNT_ID must be set.')
+  process.exit(1)
+}
+const updating = process.argv.includes('--update')
+if (updating && !CLAWOPS_AGENT_ID) {
+  console.error('CLAWOPS_AGENT_ID must be set to update an existing agent.')
   process.exit(1)
 }
 
@@ -24,17 +30,20 @@ const instructions = `당신은 'Tokie'의 전화 상담원입니다. 한국을 
 - 정중하고 간결한 존댓말을 쓰고, 한 번에 한 가지만 물어보세요.
 - 요청한 시간이 안 되면 가능한 다른 시간을 물어보세요. 대신 결정하지는 마세요.
 - 상대가 통화를 원하지 않거나 잘못 건 전화라면 사과하고 바로 끊으세요.
-- 용건이 끝나면 감사 인사를 하고 통화를 마치세요.`
+- 용건이 끝나거나 더 진행할 수 없으면 짧게 감사 인사를 한 뒤 통화 종료 도구를 사용해 전화를 끊으세요. 인사 후 상대가 끊기를 기다리지 마세요.`
 
-const response = await fetch(`https://api.claw-ops.com/v1/accounts/${CLAWOPS_ACCOUNT_ID}/agents`, {
-  method: 'POST',
+const response = await fetch(`https://api.claw-ops.com/v1/accounts/${CLAWOPS_ACCOUNT_ID}/agents${updating ? `/${encodeURIComponent(CLAWOPS_AGENT_ID)}` : ''}`, {
+  method: updating ? 'PATCH' : 'POST',
   headers: { authorization: `Bearer ${CLAWOPS_API_KEY}`, 'content-type': 'application/json' },
   // Live transcript events let the chat show the call as it happens and report back without transcribing the recording.
-  body: JSON.stringify({ name: 'Tokie 발신 상담원', instructions, greeting: true, liveEvents: { events: ['transcript.partial', 'transcript.final'] } }),
+  // An existing agent may be shared. Leave its prompt, model and other settings untouched.
+  body: JSON.stringify(updating
+    ? { greeting: true, idle: { enabled: true, timeout: 8, maxNudges: 1 } }
+    : { name: 'Tokie 발신 상담원', instructions, greeting: true, idle: { enabled: true, timeout: 8, maxNudges: 1 }, liveEvents: { events: ['transcript.partial', 'transcript.final'] } }),
 })
 const body = await response.json().catch(() => ({}))
 if (!response.ok || !body.agentId) {
-  console.error(`ClawOps refused to create the agent (HTTP ${response.status}):`, body.code ?? body.error ?? body)
+  console.error(`ClawOps refused to ${updating ? 'update' : 'create'} the agent (HTTP ${response.status}):`, body.code ?? body.error ?? body)
   process.exit(1)
 }
-console.log(`Created agent "${body.name}".\nCLAWOPS_AGENT_ID=${body.agentId}`)
+console.log(`${updating ? 'Updated' : 'Created'} agent "${body.name}".\nCLAWOPS_AGENT_ID=${body.agentId}`)
