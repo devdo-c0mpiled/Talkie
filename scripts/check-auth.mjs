@@ -1,11 +1,14 @@
 import assert from 'node:assert/strict'
 import { randomUUID } from 'node:crypto'
+import { execFileSync } from 'node:child_process'
 
 const base = process.env.TALKIE_TEST_URL || 'http://127.0.0.1:3000'
 const url = new URL(base)
 assert.ok(url.protocol === 'http:' && ['127.0.0.1', 'localhost', '[::1]'].includes(url.hostname), 'run this check only against a local server')
 const clientIp = `2001:db8:${randomUUID().slice(0, 4)}:${randomUUID().slice(0, 4)}::1`
 const email = `test-${randomUUID()}@example.com`
+const adminEmail = process.env.TALKIE_TEST_ADMIN_EMAIL
+assert.match(adminEmail || '', /^admin-[a-f0-9-]+@example\.test$/, 'set TALKIE_TEST_ADMIN_EMAIL to the synthetic allowlisted address')
 const password = `Test-${randomUUID()}`
 const request = (path, body, cookie) => fetch(`${base}/api/auth/${path}`, {
   method: body ? 'POST' : 'GET',
@@ -29,8 +32,20 @@ assert.ok(cookie, 'sign-up must create a session cookie')
 response = await request('get-session', undefined, cookie)
 assert.equal((await response.json()).user.email, email, 'session must belong to the signed-up user')
 response = await fetch(`${base}/admin`, { headers: { cookie }, redirect: 'manual' })
-assert.equal(response.status, 200, 'authenticated users can view the account page')
-assert.ok((await response.text()).includes('반가워요'), 'account page must render')
+assert.ok((await response.text()).includes('관리자 권한이 없습니다'), 'unlisted users must not see the admin page')
+
+response = await request('sign-up/email', { name: 'Admin Test', email: adminEmail, password })
+assert.equal(response.ok, true, 'synthetic admin sign-up must succeed')
+const adminCookie = response.headers.getSetCookie().map((value) => value.split(';')[0]).join('; ')
+response = await fetch(`${base}/admin`, { headers: { cookie: adminCookie }, redirect: 'manual' })
+assert.ok((await response.text()).includes('관리자 권한이 없습니다'), 'allowlisted users with unverified email must be denied')
+
+// Only the two synthetic local users are modified; production verification must come from an identity provider.
+execFileSync('npx', ['wrangler', 'd1', 'execute', 'talkie-db', '--local', '--command', `UPDATE "user" SET "emailVerified" = 1 WHERE email IN ('${email}', '${adminEmail}')`], { stdio: 'pipe' })
+response = await fetch(`${base}/admin`, { headers: { cookie }, redirect: 'manual' })
+assert.ok((await response.text()).includes('관리자 권한이 없습니다'), 'verified but unlisted users must be denied')
+response = await fetch(`${base}/admin`, { headers: { cookie: adminCookie }, redirect: 'manual' })
+assert.ok((await response.text()).includes('관리자 권한이 없습니다'), 'verified allowlisted users must be denied until session authentication is verified')
 response = await request('sign-out', {}, cookie)
 assert.equal(response.ok, true, 'sign-out must succeed')
 response = await request('get-session', undefined, cookie)

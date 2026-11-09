@@ -1,14 +1,37 @@
 import { useForm } from '@tanstack/react-form'
 import { Link, createFileRoute, useRouter } from '@tanstack/react-router'
+import { createServerFn } from '@tanstack/react-start'
 import { useState } from 'react'
 import { authClient } from '../lib/auth-client'
 
-export const Route = createFileRoute('/login')({ component: Login })
+const getGoogleSignInAvailable = createServerFn({ method: 'GET' }).handler(async () => {
+  const { googleSignInAvailable } = await import('../lib/auth.server')
+  return googleSignInAvailable()
+})
+
+export const Route = createFileRoute('/login')({
+  loader: () => getGoogleSignInAvailable(),
+  component: Login,
+})
 
 function Login() {
   const router = useRouter()
   const [signup, setSignup] = useState(false)
   const [error, setError] = useState('')
+  const [googlePending, setGooglePending] = useState(false)
+  const googleAvailable = Route.useLoaderData()
+
+  async function signInWithGoogle() {
+    setError('')
+    setGooglePending(true)
+    try {
+      const result = await authClient.signIn.social({ provider: 'google', callbackURL: '/admin' })
+      if (result.error) throw new Error('Google sign-in failed')
+    } catch {
+      setError('Google 로그인에 연결하지 못했습니다. 잠시 후 다시 시도해 주세요.')
+      setGooglePending(false)
+    }
+  }
   const form = useForm({
     defaultValues: { name: '', email: '', password: '' },
     onSubmit: async ({ value }) => {
@@ -35,6 +58,7 @@ function Login() {
       <div className="admin-content auth-content">
         <p className="eyebrow"><span /> TALKIE FOR SHOPS</p>
         <h1>{signup ? '계정 만들기' : '다시 만나서'}<br /><em>{signup ? '함께 시작해요.' : '반가워요.'}</em></h1>
+        {googleAvailable && <button className="button button-dark" type="button" onClick={signInWithGoogle} disabled={googlePending}>Google로 계속하기 <span>↗</span></button>}
         <form onSubmit={(event) => { event.preventDefault(); void form.handleSubmit() }}>
           {signup && <form.Field name="name">{(field) => <label>이름<input name={field.name} value={field.state.value} onBlur={field.handleBlur} onChange={(event) => field.handleChange(event.target.value)} required autoComplete="name" /></label>}</form.Field>}
           <form.Field name="email">{(field) => <label>이메일<input name={field.name} type="email" value={field.state.value} onBlur={field.handleBlur} onChange={(event) => field.handleChange(event.target.value)} required autoComplete="email" /></label>}</form.Field>
