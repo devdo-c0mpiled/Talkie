@@ -3,5 +3,19 @@
   "name": "talkie",
   "main": "@tanstack/react-start/server-entry",
   "compatibility_date": "2026-11-08",
-  "compatibility_flags": ["nodejs_compat"]
+  "compatibility_flags": [
+    "nodejs_compat"
+  ],
+  "workers_dev": true,
+  "preview_urls": false,
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "talkie-db",
+      "database_id": "b5fad7d1-7cf3-4c1c-a48f-2245ab13b6b2"
+    }
+  ],
+  "vars": {
+    "BETTER_AUTH_URL": "https://talkie.devdo.workers.dev"
+  }
 }

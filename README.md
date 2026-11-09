@@ -1,39 +1,48 @@
 # Talkie
 
-한국 뷰티숍과 외국인 고객의 대화를 잇기 위한 전화 통역 서비스의 시작 화면입니다. 현재 랜딩 페이지와 준비 상태를 표시하는 관리자 경로만 제공하며, 로그인·전화 통역·통화 관리는 구현되지 않았습니다.
+한국 뷰티숍과 외국인 고객을 위한 전화 통역 서비스의 시작 화면입니다. TanStack Start와 Router를 사용하고 Cloudflare Workers에서 실행합니다. Better Auth는 D1에 계정과 세션을 저장하며 로그인 폼은 TanStack Form을 사용합니다.
 
-## 실행
+## 로컬 실행
 
-Node.js 22.12 이상과 npm이 필요합니다.
+Node.js 22.12 이상과 npm이 필요합니다. 로컬 D1 데이터는 `.wrangler/`에만 저장됩니다.
 
 ```sh
 npm install
-npm run dev
+cp .dev.vars.example .dev.vars
+# .dev.vars의 BETTER_AUTH_SECRET에 openssl rand -base64 32로 생성한 값을 넣습니다.
+npx wrangler d1 migrations apply talkie-db --local
+npm run dev -- --host 127.0.0.1 --port 3000
 ```
 
+`.dev.vars`는 비밀값이므로 Git에 추가하지 마세요. 로컬 URL을 바꾸면 `BETTER_AUTH_URL`도 실제 접속 주소와 일치시켜야 합니다.
+
 - `/`: 서비스 소개
-- `/admin`: 관리자 기능 준비 안내
+- `/login`: 이메일과 비밀번호로 가입 또는 로그인
+- `/admin`: 로그인한 사용자의 계정 화면. 통화 및 관리자 기능은 준비 중입니다.
+
+이메일 소유권 확인과 비밀번호 재설정은 아직 제공하지 않습니다. 누구나 가입할 수 있으며 로그인은 관리자 권한을 부여하지 않습니다. 실제 관리 기능을 추가하기 전에 이메일 확인, 권한 모델과 복구 절차를 구현해야 합니다.
 
 ## 검사
 
 ```sh
-npm run build
 npm run typecheck
+npm run build
 npm run deploy:check
+# 로컬 서버를 실행한 상태에서 별도 터미널에서 실행합니다.
+npm run test:auth
 ```
 
-TanStack Start와 TanStack Router의 파일 기반 라우팅을 사용합니다. `src/routeTree.gen.ts`는 개발 서버 또는 빌드 시 자동 생성됩니다.
+인증 검사는 로컬 서버에서만 실행되며 로컬 D1에 테스트 계정을 생성합니다. 회원가입, 비밀번호 거부, 세션, 로그아웃, 관리자 경로 보호 및 요청 제한을 확인합니다. `src/routeTree.gen.ts`는 개발 서버 또는 빌드 시 자동 생성됩니다.
 
-## CI와 Cloudflare Workers 배포
+## Cloudflare 배포
 
-GitHub Actions는 `main`에 대한 PR과 `main` push에서 Node.js 24로 의존성 설치, 타입 검사, 빌드, Wrangler 배포 dry-run을 실행합니다. GitHub Actions에는 Cloudflare 비밀값이 필요하지 않습니다.
+GitHub Actions는 `main`에 대한 PR과 `main` 또는 `allen-wip` push에서 타입 검사, 빌드, 배포 dry-run과 로컬 D1 인증 검사를 실행합니다. Cloudflare Workers Builds는 `main`을 빌드하고 배포합니다. 두 검사는 독립적으로 실행되므로 GitHub Actions 통과가 배포의 선행 조건은 아닙니다.
 
-Cloudflare Workers Builds를 GitHub 저장소에 연결하면 `main` push마다 프로덕션을 빌드하고 배포합니다. 연결은 아직 별도로 설정해야 합니다.
+`wrangler.jsonc`의 `DB` 바인딩은 프로덕션 D1을 가리킵니다. 배포 전 대상 Cloudflare 계정과 데이터베이스를 확인하고 다음을 설정하세요.
 
-1. Cloudflare 대시보드의 **Workers & Pages**에서 새 애플리케이션을 만들고 GitHub를 선택합니다. 기존 Worker를 연결한다면 해당 Worker의 **Settings > Builds > Connect**를 선택합니다.
-2. GitHub 연결을 승인하고 `devdo-c0mpiled/Talkie`를 선택합니다. Worker 이름은 `wrangler.jsonc`의 `name`과 같은 `talkie`로 설정합니다.
-3. 프로덕션 브랜치를 `main`, 루트 디렉터리를 저장소 루트(`/`), 빌드 명령을 `npm run typecheck && npm run build`, 배포 명령을 `npx wrangler deploy`로 설정합니다. Build Variables에 `NODE_VERSION=24`를 추가합니다. Workers Builds가 의존성을 자동 설치합니다.
-4. **Settings > Build > Branch control**에서 Preview Builds를 비활성화합니다. 그러면 PR 브랜치는 자동 배포되지 않습니다. 설정 저장 후 새 Worker 생성 시 첫 배포가 실행되며, 기존 Worker 연결 시 다음 `main` push가 배포를 시작합니다.
-5. Cloudflare의 빌드 및 배포 로그와 배포 URL을 확인합니다. GitHub Actions와 Cloudflare 빌드는 독립적으로 실행되므로 Actions 결과가 Cloudflare 배포의 선행 조건은 아닙니다. PR 검사를 병합 조건으로 적용하려면 GitHub 브랜치 보호 규칙에서 CI 검사를 필수로 설정하세요.
+1. `npx wrangler d1 migrations apply talkie-db --remote`로 D1 마이그레이션을 적용합니다. 적용 전 백업과 기존 데이터 영향을 검토하세요.
+2. 32자 이상의 고유한 무작위 `BETTER_AUTH_SECRET`을 `npx wrangler secret put BETTER_AUTH_SECRET`으로 설정합니다. 로컬 비밀값과 다른 값을 사용하세요. 이 명령은 현재 운영 Worker의 새 버전을 즉시 배포할 수 있으므로 대상과 적용 시점을 확인하세요.
+3. `BETTER_AUTH_URL`은 `wrangler.jsonc`의 서비스 URL입니다. 도메인이 바뀌면 실제 URL로 변경합니다.
+4. `main` 배포 후 로그인, 세션과 로그아웃을 확인합니다. 이메일 인증과 관리자 권한은 아직 제공하지 않습니다.
 
-Workers Builds 연결 및 배포 권한은 Cloudflare 대시보드에서 설정합니다. GitHub Actions에는 Cloudflare API 토큰을 추가하지 않습니다. 실제 통화 연동 방식과 데이터 저장소는 아직 결정되지 않았습니다.
+인증 요청 제한은 Cloudflare가 제공하는 `cf-connecting-ip`를 사용하고 D1에 카운터를 저장합니다. 앱은 Cloudflare를 통해 제공되어야 하며, 로컬 테스트에서 보낸 헤더는 프로덕션 클라이언트 식별을 검증하지 않습니다.

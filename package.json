@@ -7,16 +7,20 @@
     "build": "vite build",
     "preview": "vite preview",
     "typecheck": "tsc --noEmit",
-    "deploy:check": "wrangler deploy --dry-run"
+    "deploy:check": "wrangler deploy --dry-run",
+    "test:auth": "node scripts/check-auth.mjs"
   },
   "dependencies": {
+    "@tanstack/react-form": "^1.33.5",
     "@tanstack/react-router": "^1.169.5",
     "@tanstack/react-start": "^1.169.5",
+    "better-auth": "^1.7.18",
     "react": "^19.2.0",
     "react-dom": "^19.2.0"
   },
   "devDependencies": {
     "@cloudflare/vite-plugin": "^1.67.0",
+    "@cloudflare/workers-types": "^5.20261109.1",
     "@types/node": "^24.0.0",
     "@types/react": "^19.2.0",
     "@types/react-dom": "^19.2.0",
