@@ -18,6 +18,7 @@ const RECORDING_RETRY_MS = 1500
 const MAX_TRANSCRIPT_CHARS = 6000
 // Live events come 200 to a page; a call long enough to need more pages than this is cut off here.
 const MAX_LIVE_EVENT_PAGES = 5
+const END_CALL_INSTRUCTION = '용무를 마쳤거나 상대가 통화 종료를 요청하면 짧게 작별 인사를 한 뒤 내장 통화 종료 도구를 사용해 전화를 끊으세요. 상대가 먼저 끊기를 기다리지 마세요.'
 
 export type CallStatus = { state: 'calling' | 'done'; outcome: string }
 /** A finished call as the chat agent and the booking page need it. `lines` is empty when the agent emitted no live transcript. */
@@ -64,7 +65,7 @@ export async function placeCall(to: string, instruction: string): Promise<{ call
     To: to,
     From: env.CLAWOPS_FROM_NUMBER,
     AgentId: env.CLAWOPS_AGENT_ID,
-    CallContext: { Instruction: instruction.slice(0, 4000) },
+    CallContext: { Instruction: `${instruction.slice(0, 4000 - END_CALL_INSTRUCTION.length - 2)}\n\n${END_CALL_INSTRUCTION}` },
     Timeout: RING_SECONDS,
   })
   if (created.status !== 201 || !created.body.callId) return { error: created.body.code ?? `http-${created.status}` }
