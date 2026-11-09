@@ -1,0 +1,65 @@
+import assert from 'node:assert/strict'
+import { readFile } from 'node:fs/promises'
+import { build } from 'esbuild'
+import { Miniflare } from 'miniflare'
+
+const bundle = await build({ stdin: { contents: `import { getAuth } from './src/lib/auth.server'; import { handlePersonalPhone } from './src/lib/personal-phone.server'; export default { fetch(request, bindings) { Object.assign(globalThis.__testEnv, bindings, { BETTER_AUTH_URL: 'https://example.test', BETTER_AUTH_SECRET: 'synthetic-test-secret-at-least-32-characters', CUSTOMER_0001_EMAIL: request.headers.get('x-unconfigured') ? undefined : request.headers.get('x-late-designated') ? 'no-config@example.test' : request.headers.get('x-bad-config') ? 'invalid' : 'reserved@example.test' }); return new URL(request.url).pathname === '/api/personal-phone' ? handlePersonalPhone(request) : getAuth().handler(request) } }`, resolveDir: process.cwd(), loader: 'ts' }, bundle: true, write: false, format: 'esm', platform: 'browser', target: 'es2022', external: ['node:*'], plugins: [{ name: 'synthetic-bindings', setup(build) {
+  build.onResolve({ filter: /^cloudflare:workers$/ }, () => ({ path: 'env', namespace: 'test' }))
+  build.onLoad({ filter: /.*/, namespace: 'test' }, () => ({ contents: 'export const env = globalThis.__testEnv = {}', loader: 'js' }))
+} }] })
+const worker = new Miniflare({ workers: [{ config: { name: 'signup-customer-check', compatibilityDate: '2026-11-08', compatibilityFlags: ['nodejs_compat'], env: { DB: { type: 'd1', id: 'synthetic-db' } }, manifest: { mainModule: 'worker.mjs', modules: { 'worker.mjs': { type: 'esm', contents: bundle.outputFiles[0].text } } } } }] })
+try {
+  const db = await worker.getD1Database('DB')
+  for (const file of ['migrations/0001_auth.sql', 'migrations/0002_rate_limit.sql']) {
+    for (const statement of (await readFile(file, 'utf8')).split(';').map((s) => s.trim()).filter(Boolean)) await db.prepare(statement).run()
+  }
+  const signup = (email, bad = false, unconfigured = false) => worker.dispatchFetch('https://example.test/api/auth/sign-up/email', { method: 'POST', headers: { 'content-type': 'application/json', origin: 'https://example.test', ...(bad ? { 'x-bad-config': '1' } : {}), ...(unconfigured ? { 'x-unconfigured': '1' } : {}) }, body: JSON.stringify({ name: 'Synthetic', email, password: 'synthetic-password-123' }) })
+  const failed = await signup('missing-table@example.test')
+  assert.equal(failed.ok, false, 'customer persistence failure prevents successful signup response')
+  const leftUser = await db.prepare('SELECT id FROM "user" WHERE email = ?').bind('missing-table@example.test').first()
+  const leftAccount = leftUser && await db.prepare('SELECT id FROM account WHERE userId = ?').bind(leftUser.id).first()
+  assert.equal(failed.status, 500)
+  assert.ok(leftUser && leftAccount, 'post-create failure leaves a user with a password account')
+  console.log(`Synthetic post-create failure: HTTP ${failed.status}, user persisted: ${Boolean(leftUser)}, password account persisted: ${Boolean(leftAccount)}`)
+  for (const statement of (await readFile('migrations/0006_customers.sql', 'utf8')).split(';').map((s) => s.trim()).filter(Boolean)) await db.prepare(statement).run()
+  for (const statement of (await readFile('migrations/0007_personal_phones.sql', 'utf8')).split(';').map((s) => s.trim()).filter(Boolean)) await db.prepare(statement).run()
+  const signIn = await worker.dispatchFetch('https://example.test/api/auth/sign-in/email', { method: 'POST', headers: { 'content-type': 'application/json', origin: 'https://example.test' }, body: JSON.stringify({ email: 'missing-table@example.test', password: 'synthetic-password-123' }) })
+  assert.equal(signIn.ok, true, 'existing account can sign in after persistence recovers')
+  assert.equal(await db.prepare('SELECT customer_no FROM customers WHERE user_id = ?').bind(leftUser.id).first(), null, 'sign-in alone does not repair the missing customer')
+  const cookie = signIn.headers.getSetCookie().map((value) => value.split(';')[0]).join('; ')
+  const recovered = await worker.dispatchFetch('https://example.test/api/personal-phone', { headers: { cookie } })
+  assert.equal(recovered.status, 200, 'account access repairs missing customer')
+  const recoveredNumber = (await recovered.json()).customerNumber
+  assert.match(recoveredNumber, /^\d{4,}$/)
+  const recoveredRow = await db.prepare('SELECT customer_no FROM customers WHERE user_id = ?').bind(leftUser.id).first()
+  assert.ok(recoveredRow && recoveredRow.customer_no >= 2, 'protected API creates the missing customer row for the same user')
+  assert.equal(recoveredNumber, String(recoveredRow.customer_no).padStart(4, '0'), 'API returns the persisted customer number')
+  const invalid = await signup('bad-config@example.test', true)
+  assert.equal(invalid.status, 500, 'invalid reservation configuration prevents signup with server error')
+  assert.equal(await db.prepare('SELECT id FROM "user" WHERE email = ?').bind('bad-config@example.test').first(), null, 'invalid configuration fails before user creation')
+  const noConfig = await signup('no-config@example.test', false, true)
+  assert.equal(noConfig.ok, true, 'signup works without a designated email')
+  const noConfigRow = await db.prepare('SELECT c.customer_no FROM customers c JOIN "user" u ON c.user_id = u.id WHERE u.email = ?').bind('no-config@example.test').first()
+  assert.ok(noConfigRow && noConfigRow.customer_no >= 2)
+  assert.equal((await db.prepare('SELECT user_id FROM customers WHERE customer_no = 1').first()).user_id, null, '0001 remains reserved')
+  const noConfigCookie = noConfig.headers.getSetCookie().map((value) => value.split(';')[0]).join('; ')
+  const session = await worker.dispatchFetch('https://example.test/api/auth/get-session', { headers: { cookie: noConfigCookie, 'x-unconfigured': '1' } })
+  assert.equal((await session.json()).user.emailVerified, false, 'personal phone registration must work without email verification')
+  const linked = await worker.dispatchFetch('https://example.test/api/personal-phone', { method: 'POST', headers: { cookie: noConfigCookie, origin: 'https://example.test', 'content-type': 'application/json', 'x-unconfigured': '1' }, body: JSON.stringify({ phoneNumber: '01012345678' }) })
+  assert.equal(linked.status, 200, 'newly signed-up user can register a personal phone without a designated email')
+  assert.equal((await linked.json()).customerNumber, String(noConfigRow.customer_no).padStart(4, '0'))
+  const readback = await worker.dispatchFetch('https://example.test/api/personal-phone', { headers: { cookie: noConfigCookie, 'x-unconfigured': '1' } })
+  assert.equal((await readback.json()).phoneNumber, '+821012345678')
+  const late = await worker.dispatchFetch('https://example.test/api/personal-phone', { headers: { cookie: noConfigCookie, 'x-late-designated': '1' } })
+  assert.equal(late.status, 503, 'late designated configuration cannot silently renumber an existing account')
+  assert.equal((await db.prepare('SELECT customer_no FROM customers WHERE user_id = (SELECT id FROM "user" WHERE email = ?)').bind('no-config@example.test').first()).customer_no, noConfigRow.customer_no)
+
+  const response = await signup('new@example.test')
+  assert.equal(response.ok, true, 'signup succeeds')
+  const assigned = await db.prepare('SELECT c.customer_no FROM customers c JOIN "user" u ON c.user_id = u.id WHERE u.email = ?').bind('new@example.test').first()
+  assert.ok(assigned && assigned.customer_no >= 2, 'signup success includes an assigned customer number')
+  const reserved = await signup('reserved@example.test')
+  assert.equal(reserved.ok, true)
+  assert.equal((await db.prepare('SELECT c.customer_no FROM customers c JOIN "user" u ON c.user_id = u.id WHERE u.email = ?').bind('reserved@example.test').first()).customer_no, 1)
+  console.log('Signup customer assignment and configuration checks passed')
+} finally { await worker.dispose() }

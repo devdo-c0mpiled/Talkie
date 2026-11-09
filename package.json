@@ -9,7 +9,7 @@
     "typecheck": "tsc --noEmit",
     "deploy:check": "wrangler deploy --dry-run",
     "test:ai": "node scripts/check-ai.mjs",
-    "test:live": "node scripts/check-clawops-security.mjs && node scripts/check-call-store.mjs && node scripts/check-inbound-store.mjs && node scripts/check-customers.mjs && node scripts/check-chat-outbound.mjs && node scripts/check-live-media.mjs && node scripts/check-live-delegation.mjs && node scripts/check-clawops-integration.mjs && node scripts/check-clawops-router.mjs",
+    "test:live": "node scripts/check-clawops-security.mjs && node scripts/check-call-store.mjs && node scripts/check-inbound-store.mjs && node scripts/check-customers.mjs && node scripts/check-personal-phone.mjs && node scripts/check-personal-phone-api.mjs && node scripts/check-signup-customer.mjs && node scripts/check-clawops-inbound-routing.mjs && node scripts/check-chat-outbound.mjs && node scripts/check-live-media.mjs && node scripts/check-live-delegation.mjs && node scripts/check-clawops-integration.mjs && node scripts/check-clawops-router.mjs && node scripts/check-admin-calls.mjs && node scripts/check-agent-settings.mjs && node scripts/check-call-result.mjs && node scripts/check-chat-history.mjs",
     "test:auth": "node scripts/check-auth.mjs",
     "test:google": "node scripts/check-google.mjs"
   },

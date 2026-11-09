@@ -7,7 +7,9 @@ export const getAdminAccess = createServerFn({ method: 'GET' }).handler(async ()
 })
 
 export const getCurrentUser = createServerFn({ method: 'GET' }).handler(async () => {
-  const { getAuth } = await import('./auth.server')
+  const { getAuth, ensureCustomer } = await import('./auth.server')
   const session = await getAuth().api.getSession({ headers: getRequestHeaders() })
-  return session ? { name: session.user.name, email: session.user.email } : null
+  if (!session) return null
+  await ensureCustomer(session.user.id)
+  return { name: session.user.name, email: session.user.email }
 })

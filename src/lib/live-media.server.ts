@@ -9,6 +9,7 @@ type BridgeOptions = {
   phone: WebSocket
   apiKey: string
   instructions: string
+  voice?: string
   history?: { role: 'user' | 'assistant'; content: string }[]
   bufferedEvents?: string[]
   onEvent?: (event: LiveEvent, send: (event: LiveEvent) => boolean) => void | Promise<void>
@@ -211,7 +212,7 @@ export function startLiveMediaBridge(options: BridgeOptions): () => void {
             type: 'message', role: item.role,
             content: [{ type: item.role === 'user' ? 'input_text' : 'output_text', text: item.content }],
           })) } : {}),
-          audio: { format: { type: 'audio/pcmu', rate: 8000 }, output: { voice: 'marin' } },
+          audio: { format: { type: 'audio/pcmu', rate: 8000 }, output: { voice: options.voice ?? 'marin' } },
           delegation: { type: 'client' },
         },
       }))

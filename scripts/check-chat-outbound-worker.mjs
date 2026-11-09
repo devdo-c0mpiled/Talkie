@@ -15,10 +15,16 @@ globalThis.fetch = async (url, options = {}) => {
     globalThis.__transcriptions = (globalThis.__transcriptions ?? 0) + 1
     return Response.json({ text: 'Synthetic recording transcript' })
   }
+  if (target.includes('/responses')) {
+    if (globalThis.__mode === 'analysis-error') return Response.json({ error: { message: 'synthetic model failure' } }, { status: 400 })
+    const result = { summary: ['Live transcript'], reservation: { status: 'confirmed', evidence: ['Live transcript'] }, followUpActions: [] }
+    const events = [{ type: 'response.output_text.delta', delta: JSON.stringify(result) }, { type: 'response.completed', response: { id: 'resp_synthetic', model: 'gpt-4o-mini', output: [] } }]
+    return new Response(events.map((event) => `data: ${JSON.stringify(event)}\n\n`).join('') + 'data: [DONE]\n\n', { headers: { 'content-type': 'text/event-stream' } })
+  }
   if (options.method === 'GET') {
     if (globalThis.__mode === 'status-failure') return Response.json({ error: 'unavailable' }, { status: 503 })
     if (globalThis.__mode === 'status-malformed') return Response.json({ status: 'unexpected' })
-    return Response.json({ status: ['status-completed', 'recording', 'recording-delayed', 'recording-failure'].includes(globalThis.__mode) ? 'completed' : globalThis.__mode === 'status-no-answer' ? 'no-answer' : 'queued' })
+    return Response.json({ status: ['status-completed', 'recording', 'recording-delayed', 'recording-failure', 'analysis-error'].includes(globalThis.__mode) ? 'completed' : globalThis.__mode === 'status-no-answer' ? 'no-answer' : globalThis.__mode === 'status-busy' ? 'busy' : 'queued' })
   }
   const payload = JSON.parse(options.body)
   globalThis.__outbound.push({ url, payload })

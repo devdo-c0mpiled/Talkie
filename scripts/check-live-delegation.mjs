@@ -23,7 +23,7 @@ const bundle = await build({
           return new Response('event: response.output_text.delta\\ndata: {"type":"response.output_text.delta","delta":"Synthetic answer","item_id":"test","output_index":0,"content_index":0}\\n\\nevent: response.completed\\ndata: {"type":"response.completed","response":{"id":"resp_test","status":"completed","output":[]}}\\n\\ndata: [DONE]\\n\\n', { headers: { 'content-type': 'text/event-stream' } })
         }
         const replies = []
-        const session = createLiveDelegation({ send: (event) => replies.push(event), history: [{ role: 'user', content: 'Prior synthetic request' }] })
+        const session = createLiveDelegation({ send: (event) => replies.push(event), history: [{ role: 'user', content: 'Prior synthetic request' }], instructions: 'Speak in Japanese. Ask about the first visit.' })
         await session.handle({ type: 'session.input_transcript.delta', delta: 'Synthetic question' })
         const delegation = { type: 'session.delegation.created', delegation: { target: 'client', id: 'test-id' } }
         await session.handle(delegation)
@@ -31,6 +31,7 @@ const bundle = await build({
         assert.equal(requests.length, 1)
         assert.ok(JSON.stringify(requests[0]).includes('Synthetic question'))
         assert.ok(JSON.stringify(requests[0]).includes('Prior synthetic request'), 'the delegation backend receives prior conversation context')
+        assert.ok(JSON.stringify(requests[0]).includes('Speak in Japanese. Ask about the first visit.'), 'the delegation backend receives customer settings')
         await session.handle(delegation)
         assert.equal(requests.length, 1, 'duplicate delegations must not rerun')
         await session.handle({ type: 'session.delegation.created', delegation: { target: 'responses', id: 'ignored' } })

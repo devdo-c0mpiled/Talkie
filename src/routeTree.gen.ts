@@ -15,8 +15,11 @@ import { Route as AdminRouteImport } from './routes/admin'
 import { Route as ChatRouteImport } from './routes/chat'
 import { Route as LoginRouteImport } from './routes/login'
 import { Route as SignupRouteImport } from './routes/signup'
+import { Route as ApiAgentSettingsRouteImport } from './routes/api.agent-settings'
 import { Route as ApiChatRouteImport } from './routes/api.chat'
 import { Route as ApiIncomingRouteImport } from './routes/api.incoming'
+import { Route as ApiPersonalPhoneRouteImport } from './routes/api.personal-phone'
+import { Route as ApiAdminCallsRouteImport } from './routes/api.admin.calls'
 import { Route as ApiAuthSplatRouteImport } from './routes/api.auth.$'
 import { Route as ApiCallsCallRouteImport } from './routes/api.calls.$call'
 import { Route as ApiClawopsStreamRouteImport } from './routes/api.clawops.stream'
@@ -52,6 +55,11 @@ const SignupRoute = SignupRouteImport.update({
   path: '/signup',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiAgentSettingsRoute = ApiAgentSettingsRouteImport.update({
+  id: '/api/agent-settings',
+  path: '/api/agent-settings',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiChatRoute = ApiChatRouteImport.update({
   id: '/api/chat',
   path: '/api/chat',
@@ -60,6 +68,16 @@ const ApiChatRoute = ApiChatRouteImport.update({
 const ApiIncomingRoute = ApiIncomingRouteImport.update({
   id: '/api/incoming',
   path: '/api/incoming',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiPersonalPhoneRoute = ApiPersonalPhoneRouteImport.update({
+  id: '/api/personal-phone',
+  path: '/api/personal-phone',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiAdminCallsRoute = ApiAdminCallsRouteImport.update({
+  id: '/api/admin/calls',
+  path: '/api/admin/calls',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiAuthSplatRoute = ApiAuthSplatRouteImport.update({
@@ -90,8 +108,11 @@ export interface FileRoutesByFullPath {
   '/chat': typeof ChatRoute
   '/login': typeof LoginRoute
   '/signup': typeof SignupRoute
+  '/api/agent-settings': typeof ApiAgentSettingsRoute
   '/api/chat': typeof ApiChatRoute
   '/api/incoming': typeof ApiIncomingRoute
+  '/api/personal-phone': typeof ApiPersonalPhoneRoute
+  '/api/admin/calls': typeof ApiAdminCallsRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
   '/api/calls/$call': typeof ApiCallsCallRoute
   '/api/clawops/stream': typeof ApiClawopsStreamRoute
@@ -104,8 +125,11 @@ export interface FileRoutesByTo {
   '/chat': typeof ChatRoute
   '/login': typeof LoginRoute
   '/signup': typeof SignupRoute
+  '/api/agent-settings': typeof ApiAgentSettingsRoute
   '/api/chat': typeof ApiChatRoute
   '/api/incoming': typeof ApiIncomingRoute
+  '/api/personal-phone': typeof ApiPersonalPhoneRoute
+  '/api/admin/calls': typeof ApiAdminCallsRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
   '/api/calls/$call': typeof ApiCallsCallRoute
   '/api/clawops/stream': typeof ApiClawopsStreamRoute
@@ -119,8 +143,11 @@ export interface FileRoutesById {
   '/chat': typeof ChatRoute
   '/login': typeof LoginRoute
   '/signup': typeof SignupRoute
+  '/api/agent-settings': typeof ApiAgentSettingsRoute
   '/api/chat': typeof ApiChatRoute
   '/api/incoming': typeof ApiIncomingRoute
+  '/api/personal-phone': typeof ApiPersonalPhoneRoute
+  '/api/admin/calls': typeof ApiAdminCallsRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
   '/api/calls/$call': typeof ApiCallsCallRoute
   '/api/clawops/stream': typeof ApiClawopsStreamRoute
@@ -135,8 +162,11 @@ export interface FileRouteTypes {
     | '/chat'
     | '/login'
     | '/signup'
+    | '/api/agent-settings'
     | '/api/chat'
     | '/api/incoming'
+    | '/api/personal-phone'
+    | '/api/admin/calls'
     | '/api/auth/$'
     | '/api/calls/$call'
     | '/api/clawops/stream'
@@ -149,8 +179,11 @@ export interface FileRouteTypes {
     | '/chat'
     | '/login'
     | '/signup'
+    | '/api/agent-settings'
     | '/api/chat'
     | '/api/incoming'
+    | '/api/personal-phone'
+    | '/api/admin/calls'
     | '/api/auth/$'
     | '/api/calls/$call'
     | '/api/clawops/stream'
@@ -163,8 +196,11 @@ export interface FileRouteTypes {
     | '/chat'
     | '/login'
     | '/signup'
+    | '/api/agent-settings'
     | '/api/chat'
     | '/api/incoming'
+    | '/api/personal-phone'
+    | '/api/admin/calls'
     | '/api/auth/$'
     | '/api/calls/$call'
     | '/api/clawops/stream'
@@ -178,8 +214,11 @@ export interface RootRouteChildren {
   ChatRoute: typeof ChatRoute
   LoginRoute: typeof LoginRoute
   SignupRoute: typeof SignupRoute
+  ApiAgentSettingsRoute: typeof ApiAgentSettingsRoute
   ApiChatRoute: typeof ApiChatRoute
   ApiIncomingRoute: typeof ApiIncomingRoute
+  ApiPersonalPhoneRoute: typeof ApiPersonalPhoneRoute
+  ApiAdminCallsRoute: typeof ApiAdminCallsRoute
   ApiAuthSplatRoute: typeof ApiAuthSplatRoute
   ApiCallsCallRoute: typeof ApiCallsCallRoute
   ApiClawopsStreamRoute: typeof ApiClawopsStreamRoute
@@ -230,6 +269,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof SignupRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/agent-settings': {
+      id: '/api/agent-settings'
+      path: '/api/agent-settings'
+      fullPath: '/api/agent-settings'
+      preLoaderRoute: typeof ApiAgentSettingsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/chat': {
       id: '/api/chat'
       path: '/api/chat'
@@ -242,6 +288,20 @@ declare module '@tanstack/react-router' {
       path: '/api/incoming'
       fullPath: '/api/incoming'
       preLoaderRoute: typeof ApiIncomingRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/personal-phone': {
+      id: '/api/personal-phone'
+      path: '/api/personal-phone'
+      fullPath: '/api/personal-phone'
+      preLoaderRoute: typeof ApiPersonalPhoneRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/admin/calls': {
+      id: '/api/admin/calls'
+      path: '/api/admin/calls'
+      fullPath: '/api/admin/calls'
+      preLoaderRoute: typeof ApiAdminCallsRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/auth/$': {
@@ -282,8 +342,11 @@ const rootRouteChildren: RootRouteChildren = {
   ChatRoute: ChatRoute,
   LoginRoute: LoginRoute,
   SignupRoute: SignupRoute,
+  ApiAgentSettingsRoute: ApiAgentSettingsRoute,
   ApiChatRoute: ApiChatRoute,
   ApiIncomingRoute: ApiIncomingRoute,
+  ApiPersonalPhoneRoute: ApiPersonalPhoneRoute,
+  ApiAdminCallsRoute: ApiAdminCallsRoute,
   ApiAuthSplatRoute: ApiAuthSplatRoute,
   ApiCallsCallRoute: ApiCallsCallRoute,
   ApiClawopsStreamRoute: ApiClawopsStreamRoute,

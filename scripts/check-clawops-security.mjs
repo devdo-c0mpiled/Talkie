@@ -5,12 +5,13 @@ import { build } from 'esbuild'
 import { Miniflare } from 'miniflare'
 
 const bundle = await build({ entryPoints: ['src/lib/clawops-security.server.ts'], bundle: true, write: false, platform: 'node', format: 'esm' })
-const { authorizeClawOpsWebhook, consumeClawOpsStreamToken } = await import(`data:text/javascript;base64,${Buffer.from(bundle.outputFiles[0].text).toString('base64')}`)
+const { authorizeClawOpsWebhook, consumeClawOpsStreamToken, issueClawOpsGather, authorizeClawOpsGather } = await import(`data:text/javascript;base64,${Buffer.from(bundle.outputFiles[0].text).toString('base64')}`)
 const worker = new Miniflare({ workers: [{ config: { name: 'clawops-security-check', compatibilityDate: '2026-11-08', env: { DB: { type: 'd1', id: 'synthetic-db' } }, manifest: { mainModule: 'worker.mjs', modules: { 'worker.mjs': { type: 'esm', contents: 'export default { fetch() { return new Response("ok") } }' } } } } }] })
 try {
   const db = await worker.getD1Database('DB')
   await db.prepare(await readFile('migrations/0003_clawops_stream_tokens.sql', 'utf8')).run()
   for (const statement of (await readFile('migrations/0005_clawops_stream_context.sql', 'utf8')).split(';').map(s => s.trim()).filter(Boolean)) await db.prepare(statement).run()
+  await db.prepare(await readFile('migrations/0008_clawops_gather.sql', 'utf8')).run()
   const config = { webhookUrl: 'https://example.test/voice', signingKey: 'synthetic-key', accountId: 'AC_TEST', phoneNumber: '07012340000' }
   const params = { CallId: 'CA_TEST', AccountId: 'AC_TEST', From: '01012340000', To: '07012340000', CallStatus: 'in-progress', Direction: 'inbound' }
   function request(values = params, signatureValues = values, url = config.webhookUrl, signatureUrl = url) {
@@ -41,7 +42,7 @@ try {
   assert.equal(await authorizeClawOpsWebhook(request({ ...params, AccountId: 'AC_OTHER' }), config, db), null)
   const noInboundSignature = request({ ...params, CallId: 'CA_UNSIGNED_CONFIGURED' })
   noInboundSignature.headers.delete('x-signature')
-  assert.ok(await authorizeClawOpsWebhook(noInboundSignature, config, db), 'inbound skips signature even if a signing key is configured')
+  assert.ok(await authorizeClawOpsWebhook(noInboundSignature, config, db), 'unsigned inbound remains supported')
   assert.equal(await authorizeClawOpsWebhook(request(params, params, 'https://evil.test/voice'), config, db), null)
   const duplicated = request()
   const body = `${await duplicated.text()}&To=07012340000`
@@ -85,12 +86,43 @@ try {
   const inboundUnsigned = request({ ...params, CallId: 'CA_UNSIGNED_INBOUND' })
   inboundUnsigned.headers.delete('x-signature')
   const inboundToken = await authorizeClawOpsWebhook(inboundUnsigned, unsignedConfig, db)
-  assert.ok(inboundToken, 'inbound is available without a signing key')
+  assert.ok(inboundToken, 'inbound remains available without a signing key')
   assert.equal(await consumeClawOpsStreamToken(db, inboundToken), true)
-  assert.equal(await consumeClawOpsStreamToken(db, inboundToken), false, 'unsigned inbound stream tokens remain single use')
+  assert.equal(await consumeClawOpsStreamToken(db, inboundToken), false)
   assert.equal(await authorizeClawOpsWebhook(request({ ...params, CallId: 'CA_WRONG_INBOUND', To: '07099999999' }), unsignedConfig, db), null, 'unsigned inbound checks the owned number')
-  assert.equal(await authorizeClawOpsWebhook(unsigned.clone(), unsignedConfig, db, async () => false), null, 'unsigned outbound requires a valid reservation')
+  assert.equal(await authorizeClawOpsWebhook(request({ ...unsignedFields, CallId: 'CA_UNBOUND' }, { ...unsignedFields, CallId: 'CA_UNBOUND' }, outboundUrl), unsignedConfig, db, async () => false), null, 'unsigned outbound requires a valid reservation')
   assert.ok(await authorizeClawOpsWebhook(unsigned, unsignedConfig, db, async context => context.intent === intent && context.to === '01012340000'), 'a reserved outbound call may start without a signing key')
+  const initial = await authorizeClawOpsWebhook(request({ ...params, CallId: 'CA_GATHER', CallerIdRestricted: 'true' }), config, db)
+  assert.ok(initial)
+  assert.equal(initial.callerNumber, null, 'restricted caller cannot be identified')
+  const gatherToken = await issueClawOpsGather(db, initial)
+  assert.match(gatherToken, /^[0-9a-f]{64}$/)
+  assert.notEqual(gatherToken, initial.token, 'gather token must not expose a stream token')
+  const actionUrl = `${config.webhookUrl}?gather=${gatherToken}`
+  const action = { CallId: 'CA_GATHER', From: params.From, To: params.To, Direction: 'inbound', CallerIdRestricted: 'true', Digits: '0001' }
+  assert.equal(await authorizeClawOpsGather(request({ ...action, CallId: 'CA_OTHER' }, undefined, actionUrl), config, db), null, 'callback is bound to the original call')
+  assert.equal(await authorizeClawOpsGather(request({ ...action, CallerIdRestricted: 'false' }, undefined, actionUrl), config, db), null, 'caller restrictions cannot be removed')
+  const unsignedAction = request(action, undefined, actionUrl)
+  unsignedAction.headers.delete('x-signature')
+  const selected = await authorizeClawOpsGather(unsignedAction, config, db)
+  assert.equal(selected.callId, 'CA_GATHER')
+  assert.equal(selected.callerNumber, null)
+  assert.equal(selected.digits, '0001')
+  assert.notEqual(selected.token, gatherToken)
+  assert.equal(await consumeClawOpsStreamToken(db, { callId: selected.callId, token: gatherToken }), false)
+  assert.equal(await authorizeClawOpsGather(request(action, undefined, actionUrl), config, db), null, 'callback token is one use')
+  assert.equal(await consumeClawOpsStreamToken(db, selected), true)
+  const concurrent = await authorizeClawOpsWebhook(request({ ...params, CallId: 'CA_CONCURRENT' }), config, db)
+  const concurrentToken = await issueClawOpsGather(db, concurrent)
+  const concurrentUrl = `${config.webhookUrl}?gather=${concurrentToken}`
+  const concurrentAction = { ...action, CallId: 'CA_CONCURRENT', CallerIdRestricted: 'false' }
+  const callbacks = await Promise.all(Array.from({ length: 4 }, () => authorizeClawOpsGather(request(concurrentAction, undefined, concurrentUrl), config, db)))
+  assert.equal(callbacks.filter(Boolean).length, 1, 'concurrent callbacks are consumed once')
+  const expiring = await authorizeClawOpsWebhook(request({ ...params, CallId: 'CA_GATHER_EXPIRED' }), config, db)
+  const expiryToken = await issueClawOpsGather(db, expiring)
+  const expiryUrl = `${config.webhookUrl}?gather=${expiryToken}`
+  await db.prepare('UPDATE clawops_gather_tokens SET expires_at = 0').run()
+  assert.equal(await authorizeClawOpsGather(request({ ...action, CallId: 'CA_GATHER_EXPIRED', CallerIdRestricted: 'false' }, undefined, expiryUrl), config, db), null, 'expired callback is rejected')
   console.log('ClawOps signature, replay and stream token checks passed')
 } finally {
   await worker.dispose()

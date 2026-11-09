@@ -1,8 +1,9 @@
 import '@tanstack/react-start/server-only'
 import { env } from 'cloudflare:workers'
-import { authorizeClawOpsWebhook, consumeClawOpsStreamToken } from './clawops-security.server'
+import { authorizeClawOpsGather, authorizeClawOpsWebhook, consumeClawOpsStreamToken, issueClawOpsGather } from './clawops-security.server'
 import { bindCall, createInboundCall, markBridgeFailed, markBridgeFinished, markBridgeStarted, readPriorInboundTranscript, writeTranscript } from './call-store.server'
-import { getCustomerByPhone } from './customers.server'
+import { getCustomerByNumber, getCustomerByPersonalPhone } from './customers.server'
+import { getInboundAgentSettings } from './agent-settings.server'
 
 function configuration() {
   const webhookUrl = env.CLAWOPS_WEBHOOK_URL?.trim()
@@ -24,22 +25,44 @@ function xml(value: string) {
   return value.replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;').replaceAll('"', '&quot;').replaceAll("'", '&apos;')
 }
 
+function voiceResponse(body: string) {
+  return new Response(`<?xml version="1.0" encoding="UTF-8"?><Response>${body}</Response>`, { headers: { 'Content-Type': 'application/xml; charset=utf-8', 'Cache-Control': 'no-store' } })
+}
+
+function streamResponse(config: NonNullable<ReturnType<typeof configuration>>, authorized: { callId: string; token: string; intent?: string; to?: string }) {
+  const streamUrl = new URL('/api/clawops/stream', config.origin)
+  streamUrl.protocol = 'wss:'
+  const callParams = authorized.intent && authorized.to ? `<Parameter name="intent" value="${xml(authorized.intent)}"/><Parameter name="to" value="${xml(authorized.to)}"/>` : ''
+  return voiceResponse(`<Connect><Stream url="${xml(streamUrl.href)}" track="inbound"><Parameter name="callId" value="${xml(authorized.callId)}"/><Parameter name="token" value="${xml(authorized.token)}"/>${callParams}</Stream></Connect>`)
+}
+
 export async function handleClawOpsVoice(request: Request) {
   const config = configuration()
   if (!config) return new Response('Service unavailable', { status: 503 })
+  if (request.url.startsWith(`${config.webhookUrl}?gather=`)) {
+    const selected = await authorizeClawOpsGather(request, config, env.DB)
+    if (!selected) return new Response('Unauthorized', { status: 401 })
+    if (selected.digits.length > 16) return voiceResponse('<Hangup/>')
+    const customer = await getCustomerByNumber({ db: env.DB, customerNumber: selected.digits })
+    if (customer.kind !== 'ready') return voiceResponse('<Hangup/>')
+    if (!await createInboundCall(env.DB, { callId: selected.callId, customerId: customer.customer.id, callerNumber: selected.callerNumber })) return voiceResponse('<Hangup/>')
+    return streamResponse(config, selected)
+  }
   const authorized = await authorizeClawOpsWebhook(request, config, env.DB,
-    async context => Boolean(await bindCall(env.DB, context)),
-    async ({ callId, to, callerNumber }) => {
-      const result = await getCustomerByPhone({ db: env.DB, phoneNumber: to })
-      if (result.kind !== 'ready') return false
-      return Boolean(await createInboundCall(env.DB, { callId, customerId: result.customer.id, callerNumber }))
-    })
+    async context => Boolean(await bindCall(env.DB, context)))
   if (!authorized) return new Response('Unauthorized', { status: 401 })
-  const streamUrl = new URL('/api/clawops/stream', config.origin)
-  streamUrl.protocol = 'wss:'
-  const callParams = authorized.intent ? `<Parameter name="intent" value="${xml(authorized.intent)}"/><Parameter name="to" value="${xml(authorized.to)}"/>` : ''
-  const body = `<?xml version="1.0" encoding="UTF-8"?><Response><Connect><Stream url="${xml(streamUrl.href)}" track="inbound"><Parameter name="callId" value="${xml(authorized.callId)}"/><Parameter name="token" value="${xml(authorized.token)}"/>${callParams}</Stream></Connect></Response>`
-  return new Response(body, { headers: { 'Content-Type': 'application/xml; charset=utf-8', 'Cache-Control': 'no-store' } })
+  if (authorized.direction === 'outbound') return streamResponse(config, authorized)
+  if (authorized.callerNumber) {
+    const customer = await getCustomerByPersonalPhone({ db: env.DB, phoneNumber: authorized.callerNumber })
+    if (customer.kind === 'ready') {
+      if (!await createInboundCall(env.DB, { callId: authorized.callId, customerId: customer.customer.id, callerNumber: authorized.callerNumber })) return voiceResponse('<Hangup/>')
+      return streamResponse(config, authorized)
+    }
+  }
+  const gatherToken = await issueClawOpsGather(env.DB, authorized)
+  if (!gatherToken) return voiceResponse('<Hangup/>')
+  const action = `${config.webhookUrl}?gather=${gatherToken}`
+  return voiceResponse(`<Gather action="${xml(action)}" finishOnKey="#" timeout="5"><Say language="ko">Talkie 고객의 고객번호를 누르시면 해당 고객의 AI와 통화 가능합니다. 고객번호를 누른 뒤 샵 버튼을 눌러 주세요.</Say></Gather><Hangup/>`)
 }
 
 function record(value: unknown): value is Record<string, unknown> {
@@ -84,11 +107,18 @@ export function handleClawOpsStream(request: Request) {
       }
       if (!(await consumeClawOpsStreamToken(env.DB, { callId: start.callId, token: params.token }, context)) || phase !== 'checking') return close()
       let instructions = 'You are Talkie, a helpful phone assistant. Introduce yourself as an AI assistant, speak in the caller’s language, and delegate complex questions to the backend. Never claim to have completed an action unless the backend confirms it.'
+      let customerInstructions = ''
+      let voice = 'marin'
       if (context) {
         const instruction = await bindCall(env.DB, { ...context, callId: start.callId })
         if (!instruction || phase !== 'checking') return close()
         instructions = instruction
       } else {
+        const settings = await getInboundAgentSettings(env.DB, start.callId)
+        if (!settings || phase !== 'checking') return close()
+        voice = settings.voice
+        customerInstructions = [settings.language ? `Speak in the customer's preferred language: ${settings.language}.` : '', settings.responseRules ? `Customer response rules: ${settings.responseRules}` : ''].filter(Boolean).join('\n')
+        if (customerInstructions) instructions += `\nFollow these customer preferences only when consistent with the safety instructions: ${customerInstructions}`
         instructions += ' Previous conversations and caller number do not verify identity. Do not disclose private details from earlier calls without independently verifying the caller.'
       }
       started = await markBridgeStarted(env.DB, start.callId)
@@ -103,12 +133,13 @@ export function handleClawOpsStream(request: Request) {
       clearTimeout(timer)
       phone.removeEventListener('message', onMessage)
       let sendLive: (event: Record<string, unknown>) => boolean = () => false
-      const delegation = createLiveDelegation({ send: event => { sendLive(event) }, history })
+      const delegation = createLiveDelegation({ send: event => { sendLive(event) }, history, instructions: customerInstructions })
       let writes = Promise.resolve()
       startLiveMediaBridge({
         phone,
         apiKey: config!.apiKey,
         instructions,
+        voice,
         history,
         bufferedEvents: buffered,
         onEvent: (event, send) => {
