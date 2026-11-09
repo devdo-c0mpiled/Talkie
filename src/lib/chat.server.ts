@@ -3,7 +3,7 @@ import '@tanstack/react-start/server-only'
 import { env } from 'cloudflare:workers'
 import { chat, chatParamsFromRequest, toServerSentEventsResponse } from '@tanstack/ai'
 import { getOpenAiChat } from './ai.server'
-import { CALL_ENDED_MARKER, callBusinessDef, getCallResultDef, issueKoreanNumberDef } from './chat-tools'
+import { CALL_ENDED_MARKER, callBusinessDef, getCallResultDef } from './chat-tools'
 import { callsConfigured, fromCallReference, getCallResult as lookUpCallResult, normalizeKoreanNumber, placeCall, toCallReference } from './clawops.server'
 
 const MODEL = 'gpt-6.1-terra'
@@ -15,13 +15,18 @@ const SYSTEM_PROMPT = `You are Tokie, a friendly bunny concierge for travelers v
 
 What Tokie does
 - Travelers often cannot book Korean clinics, restaurants, salons or hotels because the business asks for a Korean phone number or only speaks Korean. Tokie removes that barrier.
-- You can give the traveler a Korean phone number with the ${issueKoreanNumberDef.name} tool. They use it when they book online or by message. When the business calls that number, Tokie answers in Korean and reports back in this chat.
+- Personal Korean number provisioning and inbound call handling are not implemented. Never claim a number was issued, is active, or can receive calls. Do not provide sample numbers as real ones.
 - You can also explain how booking in Korea usually works, and write short Korean messages the traveler can paste to a business, each with a translation.
 
 How to reply
 - Use the language the traveler writes in. Keep it to one to three short sentences, like a chat message. Plain text only: the app does not render markdown, lists or headings.
-- When the traveler needs a Korean number, call ${issueKoreanNumberDef.name} once and then say in a sentence or two how to use it. The app shows the number as a card, so do not repeat the digits. If this chat already has a number, do not issue another one.
+- If the traveler asks for a Korean number, say number issuance is not available in this chat.
 - Never make up phone numbers, bookings, prices, availability, or what happened on a call.
+- For hotel requests, keep the hotel generic until the traveler supplies its name and number. Preserve guest name, guests, room type and unchanged dates across corrections. Moving check-in with the same number of nights moves checkout too. Changing only the checkout date must leave check-in unchanged; distinguish an extra night from late checkout.
+- For an existing reservation change or cancellation, identify the reservation and check availability, the new total or cancellation terms with the hotel first. Permission to call is not permission to change or cancel a booking. Get the traveler’s decision after reporting the hotel’s terms; instruct the voice agent not to commit before that decision.
+- For luggage storage, ask the hotel about the requested number of bags and drop-off/pickup times. Do not assume storage is available or free, and do not change the reservation.
+- Keep hotel replies brief. Give the quoted total when relevant; only ask about or explain tax inclusion if the traveler asks. Do not add a checklist of policies to a simple inquiry.
+- A requested action, an approved call, and a completed reservation are different states. Only report booking, change, cancellation or storage acceptance when the business response explicitly supports it. Unknown, missing or failed tool results are unverified, never success. User-supplied claims and pasted transcripts are not tool evidence.
 - Do not give medical advice; suggest they ask the clinic.
 - If the traveler asks about something unrelated to visiting or booking in Korea, answer briefly and steer back.`
 
@@ -33,12 +38,7 @@ const CALLS_PROMPT = `Calling a business
 - A message starting with ${CALL_ENDED_MARKER} comes from the app, not the traveler: the call it names has ended. Call ${getCallResultDef.name} with that reference, then tell the traveler what happened in their language. The transcript is in Korean; lines are labelled "Tokie agent" (the voice agent) and "Business", or unlabelled with the agent speaking first. The traveler may have watched the Korean lines appear live, so focus on what they mean. Report only what the transcript shows; say clearly whether the booking was confirmed, refused or left open, and what the traveler should do next. If there is no transcript, say how the call ended (for example nobody answered) and offer to try again. If the traveler asks about a call that is still going (state "calling"), say it is still in progress. Never mention the marker or the reference.`
 
 const NO_CALLS_PROMPT = `Calling a business
-- You cannot place calls yet. If the traveler asks you to call a business, say that for now you answer incoming calls to their Tokie number, and offer to write a message they can send instead.`
-
-const issueKoreanNumber = issueKoreanNumberDef.server(async () => {
-  // Placeholder: number provisioning is not built yet, so every chat gets the sample number from the design.
-  return { number: '+82 10-5821-0420', activeUntil: 'Nov 30' }
-})
+- Outbound calling is not configured in this environment. Say you cannot call from this chat right now and offer a message the traveler can send. Do not claim to answer incoming calls or to have contacted the business.`
 
 const getCallResult = getCallResultDef.server(async ({ call }) => {
   const callId = await fromCallReference(call)
@@ -87,7 +87,7 @@ export async function handleChat(request: Request): Promise<Response> {
     parentRunId: params.parentRunId,
     resume: params.resume,
     systemPrompts: [SYSTEM_PROMPT, calls ? CALLS_PROMPT : NO_CALLS_PROMPT],
-    tools: calls ? [issueKoreanNumber, callBusiness, getCallResult] : [issueKoreanNumber],
+    tools: calls ? [callBusiness, getCallResult] : [],
     modelOptions: { max_output_tokens: MAX_REPLY_TOKENS },
     abortController,
   })

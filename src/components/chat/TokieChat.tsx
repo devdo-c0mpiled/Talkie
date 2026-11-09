@@ -10,6 +10,7 @@ import {
 } from '../../lib/chat-tools'
 import type { CallLine, CallPlaced, CallRequest, KoreanNumber } from '../../lib/chat-tools'
 import { LineIcon } from '../landing/LineIcon'
+import { HotelRehearsal } from './HotelRehearsal'
 
 const DIGIT_HEIGHT = 34
 const CALL_POLL_MS = 1500
@@ -178,7 +179,7 @@ function CallLive({ reference, business, onDone, onActivity }: CallLiveProps) {
 /** One line of the feed: a text bubble, the number card, or a call with its live transcript. */
 type Row = { key: string; mine: boolean } & ({ text: string } | { card: KoreanNumber } | { call: string; business: string })
 
-export function TokieChat() {
+export function TokieChat({ hotelHarness = false }: { hotelHarness?: boolean }) {
   // One conversation per visit: the id only has to stay stable while this screen is mounted.
   const [threadId] = useState(() => crypto.randomUUID())
   const { messages, sendMessage, isLoading, error, interrupts } = useChat({
@@ -279,6 +280,8 @@ export function TokieChat() {
         {/* Tokie replies in whatever language the traveler writes in, so this only shows the app language. */}
         <button type="button" className="ch-lang" aria-label="Language: English"><LineIcon name="globe" size={16} />English</button>
       </header>
+
+      {hotelHarness && <HotelRehearsal busy={isLoading || Boolean(approval) || rows.some(row => 'call' in row)} messages={messages} onFill={fillQuickReply} />}
 
       <main ref={feed} className="ch-feed" aria-live="polite">
         <div className="ch-row"><TokieAvatar /><p className="ch-bubble">{GREETING}</p></div>
