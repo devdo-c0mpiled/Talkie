@@ -24,6 +24,8 @@ const GREETING = "Hi, I'm Tokie! Tell me what you want to book in Korea and I'll
 const quickReplies = ['What will you say on the call?', 'Can you call them for me?']
 // How a call that nobody picked up is titled, by the outcome the call API reports.
 const UNANSWERED: Record<string, string> = { 'no-answer': 'No answer', busy: 'Line was busy', rejected: 'Call declined', canceled: 'Call canceled' }
+// The outcome this screen gives a call it could no longer look up; the call API never reports it.
+const LOST = 'lost'
 
 function isKoreanNumber(value: unknown): value is KoreanNumber {
   return typeof value === 'object' && value !== null && typeof (value as KoreanNumber).number === 'string' && typeof (value as KoreanNumber).activeUntil === 'string'
@@ -140,6 +142,7 @@ function ResultLink({ id, status, business }: CallResultLink) {
         <span className="ch-link-text">
           {status === 'confirmed' && <span className="ch-badge ch-badge--ok"><LineIcon name="check" size={14} />Confirmed</span>}
           {status === 'pending' && <span className="ch-badge">Pending</span>}
+          {status === 'declined' && <span className="ch-badge ch-badge--off">Not booked</span>}
           <span className="ch-link-title">{title}</span>
           <span className="ch-link-host">{window.location.host}</span>
         </span>
@@ -231,6 +234,7 @@ function CallLive({ reference, business, phoneNumber, onDone, onActivity }: Call
         } else if (++failures >= CALL_POLL_TRIES) {
           // A call that still cannot be looked up will not get any further.
           next = 'done'
+          if (!stopped) setOutcome(LOST)
         }
       } catch {
         // Network hiccup: try again on the next tick.
@@ -255,7 +259,8 @@ function CallLive({ reference, business, phoneNumber, onDone, onActivity }: Call
 
   if (state === 'done') {
     const answered = outcome === 'completed' || lines.length > 0
-    const title = answered ? `Call ended${seconds === null ? '' : ` · ${formatDuration(seconds)}`}` : UNANSWERED[outcome] ?? 'Call didn’t connect'
+    // A lost call may still be going, so it is not called ended.
+    const title = outcome === LOST ? 'Couldn’t check on the call' : answered ? `Call ended${seconds === null ? '' : ` · ${formatDuration(seconds)}`}` : UNANSWERED[outcome] ?? 'Call didn’t connect'
     return (
       <div className="ch-call ch-call--end">
         <div className="ch-call-row">

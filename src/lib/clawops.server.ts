@@ -20,7 +20,8 @@ const MAX_TRANSCRIPT_CHARS = 6000
 const MAX_LIVE_EVENT_PAGES = 5
 const END_CALL_INSTRUCTION = '용무를 마쳤거나 상대가 통화 종료를 요청하면 짧게 작별 인사를 한 뒤 내장 통화 종료 도구를 사용해 전화를 끊으세요. 상대가 먼저 끊기를 기다리지 마세요.'
 
-export type CallStatus = { state: 'calling' | 'done'; outcome: string }
+/** `unknown` when the call could not be looked up, which says nothing about the call itself. */
+export type CallStatus = { state: 'calling' | 'done' | 'unknown'; outcome: string }
 /** A finished call as the chat agent and the booking page need it. `lines` is empty when the agent emitted no live transcript. */
 export type CallReport = CallStatus & { to?: string; endedAt?: string; hasRecording: boolean; lines: CallLine[]; transcript?: string }
 
@@ -55,7 +56,7 @@ async function clawops<T>(path: string, method: 'GET' | 'POST' = 'GET', body?: u
     headers: { authorization: `Bearer ${env.CLAWOPS_API_KEY}`, 'content-type': 'application/json' },
     body: body === undefined ? undefined : JSON.stringify(body),
   })
-  return { status: response.status, body: (await response.json().catch(() => ({}))) as T & { code?: string } }
+  return { ok: response.ok, status: response.status, body: (await response.json().catch(() => ({}))) as T & { code?: string } }
 }
 
 /** Queue a call from the Tokie number; `instruction` tells the voice agent what this call is for. */
@@ -75,7 +76,9 @@ export async function placeCall(to: string, instruction: string): Promise<{ call
 /** Whether a call is still going, and how it ended: only "completed" means somebody answered. */
 export async function getCallStatus(callId: string): Promise<CallStatus & { to?: string; endedAt?: string; hasRecording: boolean }> {
   const call = await clawops<{ status?: string; to?: string; dateUpdated?: string | null; recordingUrl?: string | null }>(`/calls/${callId}`)
-  const outcome = call.body.status ?? 'unknown'
+  // A failed lookup must not pass for a call that is still ringing: the chat would wait on it for good.
+  if (!call.ok || typeof call.body.status !== 'string') return { state: 'unknown', outcome: 'unknown', hasRecording: false }
+  const outcome = call.body.status
   const ended = ENDED.has(outcome)
   return { state: ended ? 'done' : 'calling', outcome, to: call.body.to, endedAt: ended ? call.body.dateUpdated ?? undefined : undefined, hasRecording: Boolean(call.body.recordingUrl) }
 }
@@ -184,5 +187,7 @@ export async function handleCallStatus(reference: string): Promise<Response> {
   const callId = await fromCallReference(reference)
   if (!callId) return Response.json({ error: 'Unknown call.' }, { status: 404 })
   const [{ state, outcome }, lines] = await Promise.all([getCallStatus(callId), getCallLines(callId)])
+  // An error status, so the chat screen counts it and gives up after a few in a row.
+  if (state === 'unknown') return Response.json({ error: 'Could not look up the call.' }, { status: 502 })
   return Response.json({ state, outcome, lines })
 }

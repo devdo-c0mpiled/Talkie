@@ -122,6 +122,7 @@
 .ch-link-url { display: inline-flex; align-items: center; min-height: 44px; padding: 2px 6px; color: var(--lp-teal); font-size: 14px; font-weight: 600; text-decoration: underline; overflow-wrap: anywhere; }
 .ch-badge { display: inline-flex; align-items: center; align-self: flex-start; gap: 6px; height: 28px; padding: 0 10px; border-radius: 999px; background: var(--lp-amber-tint); color: var(--lp-amber); font-size: 12px; line-height: 16px; font-weight: 700; letter-spacing: 0.01em; }
 .ch-badge--ok { background: var(--lp-teal); color: #fff; animation: ch-badge 0.5s ease-out both; }
+.ch-badge--off { background: var(--lp-surface-strong); color: var(--lp-ink-soft); }
 .ch-badge .lp-ic { stroke-width: 3.2; stroke-dasharray: 24; animation: ch-draw 0.6s ease-out 0.15s both; }
 @keyframes ch-badge { from { background: var(--lp-amber-tint); color: var(--lp-amber); } }
 @keyframes ch-draw { from { stroke-dashoffset: 24; } }
