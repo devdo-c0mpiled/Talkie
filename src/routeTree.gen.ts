@@ -17,8 +17,17 @@ import { Route as LoginRouteImport } from './routes/login'
 import { Route as SignupRouteImport } from './routes/signup'
 import { Route as ApiChatRouteImport } from './routes/api.chat'
 import { Route as BIdRouteImport } from './routes/b.$id'
+import { Route as BizIndexRouteImport } from './routes/biz.index'
+import { Route as BizDashboardRouteImport } from './routes/biz.dashboard'
 import { Route as ApiAuthSplatRouteImport } from './routes/api.auth.$'
 import { Route as ApiCallsCallRouteImport } from './routes/api.calls.$call'
+import { Route as BizDashboardBookingIdRouteImport } from './routes/biz.dashboard.$bookingId'
+import { Route as BizOnboardingBuilderRouteImport } from './routes/biz.onboarding.builder'
+import { Route as BizOnboardingFieldsRouteImport } from './routes/biz.onboarding.fields'
+import { Route as BizOnboardingNumberRouteImport } from './routes/biz.onboarding.number'
+import { Route as BizOnboardingPublishRouteImport } from './routes/biz.onboarding.publish'
+import { Route as BizOnboardingScheduleRouteImport } from './routes/biz.onboarding.schedule'
+import { Route as BizOnboardingTemplateRouteImport } from './routes/biz.onboarding.template'
 import { Route as ApiBIdRecordingRouteImport } from './routes/api.b.$id.recording'
 
 const IndexRoute = IndexRouteImport.update({
@@ -61,6 +70,16 @@ const BIdRoute = BIdRouteImport.update({
   path: '/b/$id',
   getParentRoute: () => rootRouteImport,
 } as any)
+const BizIndexRoute = BizIndexRouteImport.update({
+  id: '/biz/',
+  path: '/biz/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const BizDashboardRoute = BizDashboardRouteImport.update({
+  id: '/biz/dashboard',
+  path: '/biz/dashboard',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiAuthSplatRoute = ApiAuthSplatRouteImport.update({
   id: '/api/auth/$',
   path: '/api/auth/$',
@@ -69,6 +88,41 @@ const ApiAuthSplatRoute = ApiAuthSplatRouteImport.update({
 const ApiCallsCallRoute = ApiCallsCallRouteImport.update({
   id: '/api/calls/$call',
   path: '/api/calls/$call',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const BizDashboardBookingIdRoute = BizDashboardBookingIdRouteImport.update({
+  id: '/$bookingId',
+  path: '/$bookingId',
+  getParentRoute: () => BizDashboardRoute,
+} as any)
+const BizOnboardingBuilderRoute = BizOnboardingBuilderRouteImport.update({
+  id: '/biz/onboarding/builder',
+  path: '/biz/onboarding/builder',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const BizOnboardingFieldsRoute = BizOnboardingFieldsRouteImport.update({
+  id: '/biz/onboarding/fields',
+  path: '/biz/onboarding/fields',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const BizOnboardingNumberRoute = BizOnboardingNumberRouteImport.update({
+  id: '/biz/onboarding/number',
+  path: '/biz/onboarding/number',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const BizOnboardingPublishRoute = BizOnboardingPublishRouteImport.update({
+  id: '/biz/onboarding/publish',
+  path: '/biz/onboarding/publish',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const BizOnboardingScheduleRoute = BizOnboardingScheduleRouteImport.update({
+  id: '/biz/onboarding/schedule',
+  path: '/biz/onboarding/schedule',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const BizOnboardingTemplateRoute = BizOnboardingTemplateRouteImport.update({
+  id: '/biz/onboarding/template',
+  path: '/biz/onboarding/template',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiBIdRecordingRoute = ApiBIdRecordingRouteImport.update({
@@ -86,8 +140,17 @@ export interface FileRoutesByFullPath {
   '/signup': typeof SignupRoute
   '/api/chat': typeof ApiChatRoute
   '/b/$id': typeof BIdRoute
+  '/biz/dashboard': typeof BizDashboardRouteWithChildren
+  '/biz/': typeof BizIndexRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
   '/api/calls/$call': typeof ApiCallsCallRoute
+  '/biz/dashboard/$bookingId': typeof BizDashboardBookingIdRoute
+  '/biz/onboarding/builder': typeof BizOnboardingBuilderRoute
+  '/biz/onboarding/fields': typeof BizOnboardingFieldsRoute
+  '/biz/onboarding/number': typeof BizOnboardingNumberRoute
+  '/biz/onboarding/publish': typeof BizOnboardingPublishRoute
+  '/biz/onboarding/schedule': typeof BizOnboardingScheduleRoute
+  '/biz/onboarding/template': typeof BizOnboardingTemplateRoute
   '/api/b/$id/recording': typeof ApiBIdRecordingRoute
 }
 export interface FileRoutesByTo {
@@ -99,8 +162,17 @@ export interface FileRoutesByTo {
   '/signup': typeof SignupRoute
   '/api/chat': typeof ApiChatRoute
   '/b/$id': typeof BIdRoute
+  '/biz/dashboard': typeof BizDashboardRouteWithChildren
+  '/biz': typeof BizIndexRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
   '/api/calls/$call': typeof ApiCallsCallRoute
+  '/biz/dashboard/$bookingId': typeof BizDashboardBookingIdRoute
+  '/biz/onboarding/builder': typeof BizOnboardingBuilderRoute
+  '/biz/onboarding/fields': typeof BizOnboardingFieldsRoute
+  '/biz/onboarding/number': typeof BizOnboardingNumberRoute
+  '/biz/onboarding/publish': typeof BizOnboardingPublishRoute
+  '/biz/onboarding/schedule': typeof BizOnboardingScheduleRoute
+  '/biz/onboarding/template': typeof BizOnboardingTemplateRoute
   '/api/b/$id/recording': typeof ApiBIdRecordingRoute
 }
 export interface FileRoutesById {
@@ -113,8 +185,17 @@ export interface FileRoutesById {
   '/signup': typeof SignupRoute
   '/api/chat': typeof ApiChatRoute
   '/b/$id': typeof BIdRoute
+  '/biz/dashboard': typeof BizDashboardRouteWithChildren
+  '/biz/': typeof BizIndexRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
   '/api/calls/$call': typeof ApiCallsCallRoute
+  '/biz/dashboard/$bookingId': typeof BizDashboardBookingIdRoute
+  '/biz/onboarding/builder': typeof BizOnboardingBuilderRoute
+  '/biz/onboarding/fields': typeof BizOnboardingFieldsRoute
+  '/biz/onboarding/number': typeof BizOnboardingNumberRoute
+  '/biz/onboarding/publish': typeof BizOnboardingPublishRoute
+  '/biz/onboarding/schedule': typeof BizOnboardingScheduleRoute
+  '/biz/onboarding/template': typeof BizOnboardingTemplateRoute
   '/api/b/$id/recording': typeof ApiBIdRecordingRoute
 }
 export interface FileRouteTypes {
@@ -128,8 +209,17 @@ export interface FileRouteTypes {
     | '/signup'
     | '/api/chat'
     | '/b/$id'
+    | '/biz/dashboard'
+    | '/biz/'
     | '/api/auth/$'
     | '/api/calls/$call'
+    | '/biz/dashboard/$bookingId'
+    | '/biz/onboarding/builder'
+    | '/biz/onboarding/fields'
+    | '/biz/onboarding/number'
+    | '/biz/onboarding/publish'
+    | '/biz/onboarding/schedule'
+    | '/biz/onboarding/template'
     | '/api/b/$id/recording'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -141,8 +231,17 @@ export interface FileRouteTypes {
     | '/signup'
     | '/api/chat'
     | '/b/$id'
+    | '/biz/dashboard'
+    | '/biz'
     | '/api/auth/$'
     | '/api/calls/$call'
+    | '/biz/dashboard/$bookingId'
+    | '/biz/onboarding/builder'
+    | '/biz/onboarding/fields'
+    | '/biz/onboarding/number'
+    | '/biz/onboarding/publish'
+    | '/biz/onboarding/schedule'
+    | '/biz/onboarding/template'
     | '/api/b/$id/recording'
   id:
     | '__root__'
@@ -154,8 +253,17 @@ export interface FileRouteTypes {
     | '/signup'
     | '/api/chat'
     | '/b/$id'
+    | '/biz/dashboard'
+    | '/biz/'
     | '/api/auth/$'
     | '/api/calls/$call'
+    | '/biz/dashboard/$bookingId'
+    | '/biz/onboarding/builder'
+    | '/biz/onboarding/fields'
+    | '/biz/onboarding/number'
+    | '/biz/onboarding/publish'
+    | '/biz/onboarding/schedule'
+    | '/biz/onboarding/template'
     | '/api/b/$id/recording'
   fileRoutesById: FileRoutesById
 }
@@ -168,8 +276,16 @@ export interface RootRouteChildren {
   SignupRoute: typeof SignupRoute
   ApiChatRoute: typeof ApiChatRoute
   BIdRoute: typeof BIdRoute
+  BizDashboardRoute: typeof BizDashboardRouteWithChildren
+  BizIndexRoute: typeof BizIndexRoute
   ApiAuthSplatRoute: typeof ApiAuthSplatRoute
   ApiCallsCallRoute: typeof ApiCallsCallRoute
+  BizOnboardingBuilderRoute: typeof BizOnboardingBuilderRoute
+  BizOnboardingFieldsRoute: typeof BizOnboardingFieldsRoute
+  BizOnboardingNumberRoute: typeof BizOnboardingNumberRoute
+  BizOnboardingPublishRoute: typeof BizOnboardingPublishRoute
+  BizOnboardingScheduleRoute: typeof BizOnboardingScheduleRoute
+  BizOnboardingTemplateRoute: typeof BizOnboardingTemplateRoute
   ApiBIdRecordingRoute: typeof ApiBIdRecordingRoute
 }
 
@@ -231,6 +347,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof BIdRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/biz/': {
+      id: '/biz/'
+      path: '/biz'
+      fullPath: '/biz/'
+      preLoaderRoute: typeof BizIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/biz/dashboard': {
+      id: '/biz/dashboard'
+      path: '/biz/dashboard'
+      fullPath: '/biz/dashboard'
+      preLoaderRoute: typeof BizDashboardRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/auth/$': {
       id: '/api/auth/$'
       path: '/api/auth/$'
@@ -245,6 +375,55 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiCallsCallRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/biz/dashboard/$bookingId': {
+      id: '/biz/dashboard/$bookingId'
+      path: '/$bookingId'
+      fullPath: '/biz/dashboard/$bookingId'
+      preLoaderRoute: typeof BizDashboardBookingIdRouteImport
+      parentRoute: typeof BizDashboardRoute
+    }
+    '/biz/onboarding/builder': {
+      id: '/biz/onboarding/builder'
+      path: '/biz/onboarding/builder'
+      fullPath: '/biz/onboarding/builder'
+      preLoaderRoute: typeof BizOnboardingBuilderRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/biz/onboarding/fields': {
+      id: '/biz/onboarding/fields'
+      path: '/biz/onboarding/fields'
+      fullPath: '/biz/onboarding/fields'
+      preLoaderRoute: typeof BizOnboardingFieldsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/biz/onboarding/number': {
+      id: '/biz/onboarding/number'
+      path: '/biz/onboarding/number'
+      fullPath: '/biz/onboarding/number'
+      preLoaderRoute: typeof BizOnboardingNumberRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/biz/onboarding/publish': {
+      id: '/biz/onboarding/publish'
+      path: '/biz/onboarding/publish'
+      fullPath: '/biz/onboarding/publish'
+      preLoaderRoute: typeof BizOnboardingPublishRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/biz/onboarding/schedule': {
+      id: '/biz/onboarding/schedule'
+      path: '/biz/onboarding/schedule'
+      fullPath: '/biz/onboarding/schedule'
+      preLoaderRoute: typeof BizOnboardingScheduleRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/biz/onboarding/template': {
+      id: '/biz/onboarding/template'
+      path: '/biz/onboarding/template'
+      fullPath: '/biz/onboarding/template'
+      preLoaderRoute: typeof BizOnboardingTemplateRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/b/$id/recording': {
       id: '/api/b/$id/recording'
       path: '/api/b/$id/recording'
@@ -255,6 +434,18 @@ declare module '@tanstack/react-router' {
   }
 }
 
+interface BizDashboardRouteChildren {
+  BizDashboardBookingIdRoute: typeof BizDashboardBookingIdRoute
+}
+
+const BizDashboardRouteChildren: BizDashboardRouteChildren = {
+  BizDashboardBookingIdRoute: BizDashboardBookingIdRoute,
+}
+
+const BizDashboardRouteWithChildren = BizDashboardRoute._addFileChildren(
+  BizDashboardRouteChildren,
+)
+
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AccountRoute: AccountRoute,
@@ -264,8 +455,16 @@ const rootRouteChildren: RootRouteChildren = {
   SignupRoute: SignupRoute,
   ApiChatRoute: ApiChatRoute,
   BIdRoute: BIdRoute,
+  BizDashboardRoute: BizDashboardRouteWithChildren,
+  BizIndexRoute: BizIndexRoute,
   ApiAuthSplatRoute: ApiAuthSplatRoute,
   ApiCallsCallRoute: ApiCallsCallRoute,
+  BizOnboardingBuilderRoute: BizOnboardingBuilderRoute,
+  BizOnboardingFieldsRoute: BizOnboardingFieldsRoute,
+  BizOnboardingNumberRoute: BizOnboardingNumberRoute,
+  BizOnboardingPublishRoute: BizOnboardingPublishRoute,
+  BizOnboardingScheduleRoute: BizOnboardingScheduleRoute,
+  BizOnboardingTemplateRoute: BizOnboardingTemplateRoute,
   ApiBIdRecordingRoute: ApiBIdRecordingRoute,
 }
 export const routeTree = rootRouteImport
