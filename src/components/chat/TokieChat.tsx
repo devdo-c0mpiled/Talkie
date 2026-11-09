@@ -4,11 +4,11 @@ import type { CSSProperties, SubmitEvent } from 'react'
 import tokie from '../../assets/landing/tokie.webp'
 import {
   CALL_ENDED_MARKER,
-  CALL_NUMBER_STORAGE_KEY,
+  CALL_INTENT_STORAGE_KEY,
   callBusinessDef,
   issueKoreanNumberDef,
 } from '../../lib/chat-tools'
-import type { CallLine, CallPlaced, CallRequest, KoreanNumber } from '../../lib/chat-tools'
+import type { CallIntent, CallLine, CallPlaced, CallRequest, KoreanNumber } from '../../lib/chat-tools'
 import { LineIcon } from '../landing/LineIcon'
 
 const DIGIT_HEIGHT = 34
@@ -19,6 +19,23 @@ const quickReplies = ['What will you say on the call?', 'Can you call them for m
 
 function isKoreanNumber(value: unknown): value is KoreanNumber {
   return typeof value === 'object' && value !== null && typeof (value as KoreanNumber).number === 'string' && typeof (value as KoreanNumber).activeUntil === 'string'
+}
+
+/** The call the visitor set up on the landing page, if they came from there. */
+function readCallIntent(): CallIntent | null {
+  try {
+    const stored = JSON.parse(sessionStorage.getItem(CALL_INTENT_STORAGE_KEY) ?? 'null') as CallIntent | null
+    return typeof stored?.number === 'string' ? stored : null
+  } catch {
+    return null
+  }
+}
+
+/** The traveler's first message, saying what they already told the landing page. */
+function openingMessage({ number, businessName, placeType }: CallIntent) {
+  if (businessName) return `Please call ${businessName} at ${number} for me.`
+  if (placeType) return `Please call this ${placeType} for me: ${number}`
+  return `Please call ${number} for me.`
 }
 
 function TokieAvatar() {
@@ -194,14 +211,17 @@ export function TokieChat() {
   const feed = useRef<HTMLDivElement>(null)
   const input = useRef<HTMLInputElement>(null)
 
-  // Pick up the number typed on the landing page.
+  // Coming from the landing page's call box: open the conversation with what the visitor entered there.
   useEffect(() => {
-    const number = sessionStorage.getItem(CALL_NUMBER_STORAGE_KEY)
-    if (number) {
-      sessionStorage.removeItem(CALL_NUMBER_STORAGE_KEY)
-      setDraft(`Please call ${number} for me. `)
-    }
-  }, [])
+    const intent = readCallIntent()
+    if (!intent) return
+    // Sent on the next tick, so a mount that React tears down straight away (strict mode) never sends and cancels.
+    const timer = setTimeout(() => {
+      sessionStorage.removeItem(CALL_INTENT_STORAGE_KEY)
+      void sendMessage(openingMessage(intent))
+    }, 0)
+    return () => clearTimeout(timer)
+  }, [sendMessage])
 
   // What the feed shows. Reasoning, tool bookkeeping and the app's own call-ended notes stay hidden.
   const rows = messages.flatMap((message) =>
