@@ -25,16 +25,17 @@ export const Route = createRootRoute({
   component: Root,
 })
 
+// Pages that bring their own English chrome; every other page is a Korean shop page inside the shared shell.
+const standalonePaths = ['/', '/signup', '/chat']
+
 function Root() {
-  // The traveler landing at `/` and the business sign-up bring their own English chrome;
-  // every other page is a Korean shop page inside the shared shell.
-  const isLanding = useLocation({ select: (location) => location.pathname === '/' || location.pathname === '/signup' })
+  const isStandalone = useLocation({ select: (location) => standalonePaths.includes(location.pathname) })
 
   return (
-    <html lang={isLanding ? 'en' : 'ko'}>
+    <html lang={isStandalone ? 'en' : 'ko'}>
       <head><HeadContent /></head>
       <body>
-        {isLanding ? <Outlet /> : <SiteShell><Outlet /></SiteShell>}
+        {isStandalone ? <Outlet /> : <SiteShell><Outlet /></SiteShell>}
         <Scripts />
       </body>
     </html>

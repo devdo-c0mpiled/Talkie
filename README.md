@@ -42,6 +42,25 @@ ELEVENLABS_API_KEY=
 - `/login`: 이메일과 비밀번호 또는 설정된 Google 계정으로 가입 또는 로그인
 - `/account`: 로그인한 사용자의 계정 화면
 - `/admin`: 관리자 이메일로 가입한 계정의 관리자 화면. 통화 및 관리자 기능은 준비 중입니다.
+- `/chat`: 여행자용 Tokie 채팅. `/api/chat`이 TanStack AI로 OpenAI 응답을 스트리밍합니다.
+
+## 여행자 채팅과 전화 걸기
+
+`/api/chat`은 `OPENAI_API_KEY`가 있어야 동작하며(없으면 503), **로그인 없이 호출할 수 있고 요청 제한이 없습니다.** 요청 크기와 응답 길이만 제한합니다. 공개 배포 전에 인증이나 요청 제한을 붙이세요. 한국 번호 발급(`issue_korean_number`)은 아직 샘플 번호를 돌려주는 자리 표시자입니다.
+
+Tokie가 한국 업체에 전화를 거는 기능은 [ClawOps](https://docs.claw-ops.com)의 매니지드 음성 에이전트를 씁니다. 아래 네 값이 모두 있어야 켜집니다.
+
+```dotenv
+CLAWOPS_API_KEY=
+CLAWOPS_ACCOUNT_ID=
+CLAWOPS_FROM_NUMBER=   # 계정에 등록된 발신 번호 (예: 07012345678)
+CLAWOPS_AGENT_ID=      # node --env-file=.dev.vars scripts/setup-clawops-agent.mjs 로 만든 에이전트
+```
+
+- 모델이 `call_business` 도구를 부르면 채팅 화면이 업체·번호·용건을 보여 주고 승인을 받습니다. **승인 외에 다른 잠금은 없습니다.** `/api/chat`을 호출할 수 있는 사람은 누구나 이 계정으로 전화를 걸 수 있으므로, 공개 배포 전에 인증이나 요청 제한을 붙이세요.
+- 한국 일반 번호(유선, 휴대폰, 070, 050x, 15xx~18xx)만 겁니다. 긴급·단축 번호, 060, 해외 번호는 거부합니다.
+- 통화 중에는 음성 에이전트의 실시간 전사 이벤트(`liveEvents`)를 읽어 채팅에 대화를 한국어 그대로 보여 주고, 통화가 끝나면 Tokie가 그 내용을 여행자 언어로 알려 줍니다. 에이전트에 `liveEvents`가 꺼져 있으면 ClawOps에서 녹음을 받아 OpenAI(`gpt-4o-transcribe`)로 전사합니다(이 경우 통화 녹음이 OpenAI로 전송됩니다). ClawOps 자체 전사는 통화당 1분쯤 걸려 쓰지 않습니다.
+- 브라우저에 넘기는 통화 참조값은 서명되어 있어 이 앱이 건 통화만 조회할 수 있습니다.
 
 이메일 소유권 확인과 비밀번호 재설정은 아직 제공하지 않습니다. `ADMIN_EMAILS`에 지정된 이메일로 먼저 가입한 사람은 이메일 소유 확인 없이 관리자 권한을 얻습니다. Google 로그인을 사용하려면 Google Cloud 프로젝트의 웹 OAuth 클라이언트 ID와 비밀값을 `.dev.vars`의 `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`에 설정하고 승인된 리디렉션 URI에 `http://127.0.0.1:3000/api/auth/callback/google`을 추가합니다. 두 값이 모두 설정되면 Google 로그인 버튼이 표시됩니다. 기존 계정과 Google 계정의 연결은 비활성화되어 있습니다.
 

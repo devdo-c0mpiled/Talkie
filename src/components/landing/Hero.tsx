@@ -1,7 +1,9 @@
+import { useNavigate } from '@tanstack/react-router'
 import { useEffect, useState } from 'react'
 import type { RefObject, SubmitEvent } from 'react'
 import globe from '../../assets/landing/globe.svg'
 import tokie from '../../assets/landing/tokie.webp'
+import { CALL_NUMBER_STORAGE_KEY } from '../../lib/chat-tools'
 import { Icon } from './Icon'
 import { LineIcon } from './LineIcon'
 import { usePrefersReducedMotion } from './usePrefersReducedMotion'
@@ -29,6 +31,7 @@ type HeroProps = {
 }
 
 export function Hero({ number, onNumberChange, inputRef }: HeroProps) {
+  const navigate = useNavigate()
   const reducedMotion = usePrefersReducedMotion()
   const [place, setPlace] = useState(0)
   const [typed, setTyped] = useState(0)
@@ -67,8 +70,13 @@ export function Hero({ number, onNumberChange, inputRef }: HeroProps) {
 
   function call(event: SubmitEvent<HTMLFormElement>) {
     event.preventDefault()
-    if (!/\d/.test(number)) inputRef.current?.focus()
-    // Handing the number off to the phone's dialer is not built yet, so a filled-in number goes nowhere.
+    if (!/\d/.test(number)) {
+      inputRef.current?.focus()
+      return
+    }
+    // Kept out of the URL; the chat picks it up and offers to call it.
+    sessionStorage.setItem(CALL_NUMBER_STORAGE_KEY, number.trim())
+    void navigate({ to: '/chat' })
   }
 
   return (
