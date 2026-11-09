@@ -5,7 +5,7 @@ import { createCloudflareText } from '@tanstack/ai-cloudflare'
 import type { CloudflareBindingConfig } from '@tanstack/ai-cloudflare'
 import { createElevenLabsSpeech, createElevenLabsTranscription } from '@tanstack/ai-elevenlabs'
 import { createGeminiChat } from '@tanstack/ai-gemini'
-import { createOpenaiChat } from '@tanstack/ai-openai'
+import { createOpenaiChat, createOpenaiTranscription } from '@tanstack/ai-openai'
 
 function requiredSecret(value: string | undefined, name: string) {
   if (!value?.trim()) throw new Error(`${name} must be configured`)
@@ -14,6 +14,10 @@ function requiredSecret(value: string | undefined, name: string) {
 
 export function getOpenAiChat(model: Parameters<typeof createOpenaiChat>[0] = 'gpt-4o-mini') {
   return createOpenaiChat(model, requiredSecret(env.OPENAI_API_KEY, 'OPENAI_API_KEY'))
+}
+
+export function getOpenAiTranscription(model: Parameters<typeof createOpenaiTranscription>[0] = 'gpt-4o-transcribe') {
+  return createOpenaiTranscription(model, requiredSecret(env.OPENAI_API_KEY, 'OPENAI_API_KEY'))
 }
 
 export function getGeminiChat(model: Parameters<typeof createGeminiChat>[0] = 'gemini-3.8-flash') {

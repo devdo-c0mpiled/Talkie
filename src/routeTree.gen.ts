@@ -12,9 +12,12 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as AccountRouteImport } from './routes/account'
 import { Route as AdminRouteImport } from './routes/admin'
+import { Route as ChatRouteImport } from './routes/chat'
 import { Route as LoginRouteImport } from './routes/login'
 import { Route as SignupRouteImport } from './routes/signup'
+import { Route as ApiChatRouteImport } from './routes/api.chat'
 import { Route as ApiAuthSplatRouteImport } from './routes/api.auth.$'
+import { Route as ApiCallsCallRouteImport } from './routes/api.calls.$call'
 import { Route as ApiClawopsStreamRouteImport } from './routes/api.clawops.stream'
 import { Route as ApiClawopsVoiceRouteImport } from './routes/api.clawops.voice'
 
@@ -33,6 +36,11 @@ const AdminRoute = AdminRouteImport.update({
   path: '/admin',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ChatRoute = ChatRouteImport.update({
+  id: '/chat',
+  path: '/chat',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const LoginRoute = LoginRouteImport.update({
   id: '/login',
   path: '/login',
@@ -43,9 +51,19 @@ const SignupRoute = SignupRouteImport.update({
   path: '/signup',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiChatRoute = ApiChatRouteImport.update({
+  id: '/api/chat',
+  path: '/api/chat',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiAuthSplatRoute = ApiAuthSplatRouteImport.update({
   id: '/api/auth/$',
   path: '/api/auth/$',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiCallsCallRoute = ApiCallsCallRouteImport.update({
+  id: '/api/calls/$call',
+  path: '/api/calls/$call',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiClawopsStreamRoute = ApiClawopsStreamRouteImport.update({
@@ -63,9 +81,12 @@ export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/account': typeof AccountRoute
   '/admin': typeof AdminRoute
+  '/chat': typeof ChatRoute
   '/login': typeof LoginRoute
   '/signup': typeof SignupRoute
+  '/api/chat': typeof ApiChatRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
+  '/api/calls/$call': typeof ApiCallsCallRoute
   '/api/clawops/stream': typeof ApiClawopsStreamRoute
   '/api/clawops/voice': typeof ApiClawopsVoiceRoute
 }
@@ -73,9 +94,12 @@ export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/account': typeof AccountRoute
   '/admin': typeof AdminRoute
+  '/chat': typeof ChatRoute
   '/login': typeof LoginRoute
   '/signup': typeof SignupRoute
+  '/api/chat': typeof ApiChatRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
+  '/api/calls/$call': typeof ApiCallsCallRoute
   '/api/clawops/stream': typeof ApiClawopsStreamRoute
   '/api/clawops/voice': typeof ApiClawopsVoiceRoute
 }
@@ -84,9 +108,12 @@ export interface FileRoutesById {
   '/': typeof IndexRoute
   '/account': typeof AccountRoute
   '/admin': typeof AdminRoute
+  '/chat': typeof ChatRoute
   '/login': typeof LoginRoute
   '/signup': typeof SignupRoute
+  '/api/chat': typeof ApiChatRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
+  '/api/calls/$call': typeof ApiCallsCallRoute
   '/api/clawops/stream': typeof ApiClawopsStreamRoute
   '/api/clawops/voice': typeof ApiClawopsVoiceRoute
 }
@@ -96,9 +123,12 @@ export interface FileRouteTypes {
     | '/'
     | '/account'
     | '/admin'
+    | '/chat'
     | '/login'
     | '/signup'
+    | '/api/chat'
     | '/api/auth/$'
+    | '/api/calls/$call'
     | '/api/clawops/stream'
     | '/api/clawops/voice'
   fileRoutesByTo: FileRoutesByTo
@@ -106,9 +136,12 @@ export interface FileRouteTypes {
     | '/'
     | '/account'
     | '/admin'
+    | '/chat'
     | '/login'
     | '/signup'
+    | '/api/chat'
     | '/api/auth/$'
+    | '/api/calls/$call'
     | '/api/clawops/stream'
     | '/api/clawops/voice'
   id:
@@ -116,9 +149,12 @@ export interface FileRouteTypes {
     | '/'
     | '/account'
     | '/admin'
+    | '/chat'
     | '/login'
     | '/signup'
+    | '/api/chat'
     | '/api/auth/$'
+    | '/api/calls/$call'
     | '/api/clawops/stream'
     | '/api/clawops/voice'
   fileRoutesById: FileRoutesById
@@ -127,9 +163,12 @@ export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AccountRoute: typeof AccountRoute
   AdminRoute: typeof AdminRoute
+  ChatRoute: typeof ChatRoute
   LoginRoute: typeof LoginRoute
   SignupRoute: typeof SignupRoute
+  ApiChatRoute: typeof ApiChatRoute
   ApiAuthSplatRoute: typeof ApiAuthSplatRoute
+  ApiCallsCallRoute: typeof ApiCallsCallRoute
   ApiClawopsStreamRoute: typeof ApiClawopsStreamRoute
   ApiClawopsVoiceRoute: typeof ApiClawopsVoiceRoute
 }
@@ -157,6 +196,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AdminRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/chat': {
+      id: '/chat'
+      path: '/chat'
+      fullPath: '/chat'
+      preLoaderRoute: typeof ChatRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/login': {
       id: '/login'
       path: '/login'
@@ -171,11 +217,25 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof SignupRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/chat': {
+      id: '/api/chat'
+      path: '/api/chat'
+      fullPath: '/api/chat'
+      preLoaderRoute: typeof ApiChatRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/auth/$': {
       id: '/api/auth/$'
       path: '/api/auth/$'
       fullPath: '/api/auth/$'
       preLoaderRoute: typeof ApiAuthSplatRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/calls/$call': {
+      id: '/api/calls/$call'
+      path: '/api/calls/$call'
+      fullPath: '/api/calls/$call'
+      preLoaderRoute: typeof ApiCallsCallRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/clawops/stream': {
@@ -199,9 +259,12 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AccountRoute: AccountRoute,
   AdminRoute: AdminRoute,
+  ChatRoute: ChatRoute,
   LoginRoute: LoginRoute,
   SignupRoute: SignupRoute,
+  ApiChatRoute: ApiChatRoute,
   ApiAuthSplatRoute: ApiAuthSplatRoute,
+  ApiCallsCallRoute: ApiCallsCallRoute,
   ApiClawopsStreamRoute: ApiClawopsStreamRoute,
   ApiClawopsVoiceRoute: ApiClawopsVoiceRoute,
 }
