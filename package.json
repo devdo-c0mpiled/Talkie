@@ -8,12 +8,15 @@
     "preview": "vite preview",
     "typecheck": "tsc --noEmit",
     "deploy:check": "wrangler deploy --dry-run",
-    "test:auth": "node scripts/check-auth.mjs"
+    "test:auth": "node scripts/check-auth.mjs",
+    "test:payments": "node --experimental-strip-types --test tests/payments.test.mjs",
+    "test:payments:http": "node scripts/check-payments.mjs"
   },
   "dependencies": {
     "@tanstack/react-form": "^1.33.5",
     "@tanstack/react-router": "^1.169.5",
     "@tanstack/react-start": "^1.169.5",
+    "@tosspayments/tosspayments-sdk": "^2.10.0",
     "better-auth": "^1.7.18",
     "react": "^19.2.0",
     "react-dom": "^19.2.0"

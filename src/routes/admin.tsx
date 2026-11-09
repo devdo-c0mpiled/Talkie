@@ -40,6 +40,7 @@ function Admin() {
         <h1>반가워요,<br /><em>{user.name}님.</em></h1>
         <p>{user.email} 계정으로 로그인했습니다.</p>
         <div className="admin-notice"><span>✳</span><div><strong>관리 기능 준비 중</strong><p>통화 연결과 관리 기능은 아직 제공되지 않습니다.</p></div></div>
+        <Link to="/checkout" className="button button-dark">테스트 결제</Link>
         <button type="button" className="button button-dark" onClick={signOut} disabled={pending}>로그아웃 <span>↗</span></button>
         {error && <p role="alert">{error}</p>}
       </div>
