@@ -21,6 +21,7 @@ jobs:
           node-version: 24
           cache: npm
       - run: npm ci
+      - run: npm run test:payments
       - run: npm run typecheck
       - run: npm run build
       - run: npm run deploy:check
@@ -28,6 +29,7 @@ jobs:
         run: |
           printf 'BETTER_AUTH_URL=http://127.0.0.1:3000\nBETTER_AUTH_SECRET=' > .dev.vars
           openssl rand -base64 32 >> .dev.vars
+          printf 'TOSS_CLIENT_KEY=test_ck_ci\nTOSS_SECRET_KEY=test_sk_ci\n' >> .dev.vars
           npx wrangler d1 migrations apply talkie-db --local
           npm run dev -- --host 127.0.0.1 --port 3000 --strictPort > /tmp/talkie-dev.log 2>&1 &
           server_pid=$!
@@ -35,6 +37,7 @@ jobs:
           for attempt in $(seq 1 30); do
             if curl --silent --output /dev/null http://127.0.0.1:3000/login; then
               npm run test:auth
+              npm run test:payments:http
               exit 0
             fi
             sleep 2
