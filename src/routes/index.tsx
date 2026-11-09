@@ -22,21 +22,20 @@ export const Route = createFileRoute('/')({
 })
 
 function Landing() {
-  const [query, setQuery] = useState('')
-  const searchInput = useRef<HTMLInputElement>(null)
+  const [number, setNumber] = useState('')
+  const callInput = useRef<HTMLInputElement>(null)
 
-  // "Tokie, …" prompts across the page drop their text into the hero search box.
-  function askTokie(prompt: string) {
-    setQuery(prompt)
-    searchInput.current?.scrollIntoView({ behavior: 'smooth', block: 'center' })
-    searchInput.current?.focus({ preventScroll: true })
+  // "Tokie, …" prompts across the page lead back to the hero call box.
+  function askTokie() {
+    callInput.current?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+    callInput.current?.focus({ preventScroll: true })
   }
 
   return (
     <div className="lp">
       <LandingHeader />
       <main>
-        <Hero query={query} onQueryChange={setQuery} inputRef={searchInput} />
+        <Hero number={number} onNumberChange={setNumber} inputRef={callInput} />
         <LanguageMarquee />
         <HowItWorks onAsk={askTokie} />
         <Categories />
@@ -46,6 +45,10 @@ function Landing() {
         <CallToAction />
       </main>
       <LandingFooter />
+      {/* Phones only: a call-to-action that stays in reach while scrolling. */}
+      <div className="lp-mbar">
+        <a className="lp-btn lp-btn-teal" href="#clinics">Call a clinic for free</a>
+      </div>
     </div>
   )
 }

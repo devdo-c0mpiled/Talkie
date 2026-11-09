@@ -13,7 +13,7 @@ export function Faq() {
   return (
     <section id="faq" className="lp-faq">
       <div className="lp-faq-inner">
-        <h2 className="lp-h2">Questions before you call</h2>
+        <h2 className="lp-h2 lp-reveal">Questions before you call</h2>
         {questions.map(({ question, answer }) => (
           <details key={question}>
             <summary>{question} <Icon src={chevronDown} size={20} /></summary>
