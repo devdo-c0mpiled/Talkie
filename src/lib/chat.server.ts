@@ -3,7 +3,7 @@ import '@tanstack/react-start/server-only'
 import { env } from 'cloudflare:workers'
 import { chat, chatParamsFromRequest, toServerSentEventsResponse } from '@tanstack/ai'
 import { getOpenAiChat } from './ai.server'
-import { CALL_ENDED_MARKER, callBusinessDef, getCallResultDef, issueKoreanNumberDef } from './chat-tools'
+import { CALL_ENDED_MARKER, callBusinessDef, getCallResultDef, issueKoreanNumberDef, showBookingDef } from './chat-tools'
 import { callsConfigured, fromCallReference, getCallResult as lookUpCallResult, normalizeKoreanNumber, placeCall, toCallReference } from './clawops.server'
 
 const MODEL = 'gpt-6.1-terra'
@@ -30,7 +30,8 @@ const CALLS_PROMPT = `Calling a business
 - Only call a number the traveler typed in this chat. If you do not have the number, ask for it. Before calling, make sure you know what to ask or book and every detail the business will need (date, time, party size, name to book under). Ask the traveler for whatever is missing first.
 - The app asks the traveler to approve each call, so do not ask "shall I call?" yourself: call the tool once you have what you need.
 - When the tool returns status "calling", tell the traveler in one sentence that the call is on its way and that you will report back. For "invalid-number", ask them to check the number. For "failed", say the call could not be placed and offer to try again.
-- A message starting with ${CALL_ENDED_MARKER} comes from the app, not the traveler: the call it names has ended. Call ${getCallResultDef.name} with that reference, then tell the traveler what happened in their language. The transcript is in Korean; lines are labelled "Tokie agent" (the voice agent) and "Business", or unlabelled with the agent speaking first. The traveler may have watched the Korean lines appear live, so focus on what they mean. Report only what the transcript shows; say clearly whether the booking was confirmed, refused or left open, and what the traveler should do next. If there is no transcript, say how the call ended (for example nobody answered) and offer to try again. If the traveler asks about a call that is still going (state "calling"), say it is still in progress. Never mention the marker or the reference.`
+- A message starting with ${CALL_ENDED_MARKER} comes from the app, not the traveler: the call it names has ended. Call ${getCallResultDef.name} with that reference, then tell the traveler what happened in their language. The transcript is in Korean; lines are labelled "Tokie agent" (the voice agent) and "Business", or unlabelled with the agent speaking first. The traveler may have watched the Korean lines appear live, so focus on what they mean. Report only what the transcript shows; say clearly whether the booking was confirmed, refused or left open, and what the traveler should do next. If there is no transcript, say how the call ended (for example nobody answered) and offer to try again. If the traveler asks about a call that is still going (state "calling"), say it is still in progress. Never mention the marker or the reference.
+- If the transcript shows a booking was confirmed, or is waiting for the business to confirm, call ${showBookingDef.name} once for that call with what the transcript shows, then tell the traveler in a sentence or two. The app shows the details as a card, so do not repeat them all. Do not call it when nothing was booked.`
 
 const NO_CALLS_PROMPT = `Calling a business
 - You cannot place calls yet. If the traveler asks you to call a business, say that for now you answer incoming calls to their Tokie number, and offer to write a message they can send instead.`
@@ -44,6 +45,9 @@ const getCallResult = getCallResultDef.server(async ({ call }) => {
   const callId = await fromCallReference(call)
   return callId ? lookUpCallResult(callId) : { state: 'unknown' as const, outcome: 'unknown' }
 })
+
+// The chat screen draws the card from the tool call itself; there is nothing to do here.
+const showBooking = showBookingDef.server(async () => ({ shown: true }))
 
 // Runs only after the traveler has approved the call in the chat screen (needsApproval on the definition).
 const callBusiness = callBusinessDef.server(async ({ phoneNumber, businessName, instructionsKo }) => {
@@ -87,7 +91,7 @@ export async function handleChat(request: Request): Promise<Response> {
     parentRunId: params.parentRunId,
     resume: params.resume,
     systemPrompts: [SYSTEM_PROMPT, calls ? CALLS_PROMPT : NO_CALLS_PROMPT],
-    tools: calls ? [issueKoreanNumber, callBusiness, getCallResult] : [issueKoreanNumber],
+    tools: calls ? [issueKoreanNumber, callBusiness, getCallResult, showBooking] : [issueKoreanNumber],
     modelOptions: { max_output_tokens: MAX_REPLY_TOKENS },
     abortController,
   })
