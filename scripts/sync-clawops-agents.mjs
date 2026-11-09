@@ -17,7 +17,7 @@ for(const [key,name,instructions] of [
     const agent=await current.json()
     if(agent.configuration?.outputMode==='external_tts')configuration={
       outputMode:'external_tts',language:'ko',knowledge:agent.configuration.knowledge,tts:agent.configuration.tts,
-      llm:{provider:'openai-realtime',model:'gpt-realtime-2.1',input_audio_noise_reduction:'far_field',input_transcription_model:'gpt-4o-transcribe',input_transcription_prompt:'한국어 호텔 예약 통화입니다. 트윈룸, 싱글룸, 더블룸, 체크인, 체크아웃, 3일간, 3박, 2박 3일. 들리지 않는 말은 추측하지 않습니다.'},
+      llm:{provider:'openai-realtime',model:'gpt-realtime-2.1',input_audio_noise_reduction:'far_field',input_transcription_model:'gpt-4o-transcribe',input_transcription_prompt:'한국어 호텔 예약 통화입니다. 객실 용어는 트윈룸, 싱글룸, 더블룸, 체크인, 체크아웃입니다. 날짜, 기간, 숫자와 성함은 실제 들린 발음대로 받아씁니다. 알아들을 수 없는 음성을 문맥으로 완성하거나 날짜와 이름으로 만들어 넣지 않습니다.'},
     }
   }
   const r=await fetch(id?`${base}/${id}`:base,{method:id?'PATCH':'POST',headers,body:JSON.stringify({name,instructions,greeting:false,...(configuration?{configuration}:{}),liveEvents:{events:['transcript.final','transcript.partial']}})})

@@ -13,6 +13,7 @@ import { LineIcon } from '../landing/LineIcon'
 import { HotelRehearsal } from './HotelRehearsal'
 import { HotelWorkflowCard } from './HotelWorkflowCard'
 import { hotelInquiryDef, hotelStatusDef } from '../../lib/hotel-workflow-tools'
+import {formatStayDate} from '../../lib/call-result'
 import type {ReservationResult} from '../../lib/call-result'
 import type { Workflow } from '../../lib/hotel-workflow'
 
@@ -189,7 +190,7 @@ function CallLive({ reference, business, onDone, onActivity }: CallLiveProps) {
       {resultPending && !lookupError && <p role="status">Checking the call result…</p>}
       {reservation && <div className="ch-card-meta" aria-label="Reservation result">
         <p>{{inquiry:'Inquiry only',requested:'Request received',confirmed:'Reservation confirmed',changed:'Reservation updated',cancelled:'Reservation cancelled',declined:'Request declined',unknown:'Result unconfirmed'}[reservation.status]}</p>
-        {(reservation.checkIn||reservation.checkOut)&&<p>{reservation.checkIn??'—'} → {reservation.checkOut??'—'}</p>}
+        {(reservation.checkIn||reservation.checkOut)&&<p>{formatStayDate(reservation.checkIn)} → {formatStayDate(reservation.checkOut)}</p>}
         {reservation.durationText&&<p>{reservation.durationText}</p>}
         {reservation.needsDateConfirmation&&<p>Checkout needs confirmation</p>}
         {reservation.roomType&&<p>{reservation.roomType}</p>}
