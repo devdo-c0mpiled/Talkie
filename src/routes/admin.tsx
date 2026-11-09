@@ -7,11 +7,13 @@ export const Route = createFileRoute('/admin')({
   beforeLoad: async () => {
     const access = await getAdminAccess()
     if (access.status === 'anonymous') throw redirect({ to: '/login' })
+    return { access }
   },
   component: Admin,
 })
 
 function Admin() {
+  const { access } = Route.useRouteContext()
   const router = useRouter()
   const [error, setError] = useState('')
   const [pending, setPending] = useState(false)
@@ -35,8 +37,18 @@ function Admin() {
       <div className="admin-top"><Link to="/" className="back-link">← 홈으로 돌아가기</Link><span className="status"><span /> 준비 중</span></div>
       <div className="admin-content">
         <p className="eyebrow"><span /> TALKIE FOR SHOPS</p>
-        <h1>관리자 권한이 없습니다</h1>
-        <p>관리자에게 계정 권한을 문의해 주세요.</p>
+        {access.status === 'allowed' ? (
+          <>
+            <h1>반가워요,<br /><em>{access.name} 관리자님.</em></h1>
+            <p>{access.email} 계정으로 로그인했습니다.</p>
+            <div className="admin-notice"><span>✳</span><div><strong>관리자 기능 준비 중</strong><p>관리자 기능은 아직 제공되지 않습니다.</p></div></div>
+          </>
+        ) : (
+          <>
+            <h1>관리자 권한이 없습니다</h1>
+            <p>관리자에게 계정 권한을 문의해 주세요.</p>
+          </>
+        )}
         <button type="button" className="button button-dark" onClick={signOut} disabled={pending}>로그아웃 <span>↗</span></button>
         {error && <p role="alert">{error}</p>}
       </div>

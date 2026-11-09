@@ -1,6 +1,5 @@
 import assert from 'node:assert/strict'
 import { randomUUID } from 'node:crypto'
-import { execFileSync } from 'node:child_process'
 
 const base = process.env.TALKIE_TEST_URL || 'http://127.0.0.1:3000'
 const url = new URL(base)
@@ -44,14 +43,17 @@ response = await request('sign-up/email', { name: 'Admin Test', email: adminEmai
 assert.equal(response.ok, true, 'synthetic admin sign-up must succeed')
 const adminCookie = response.headers.getSetCookie().map((value) => value.split(';')[0]).join('; ')
 response = await fetch(`${base}/admin`, { headers: { cookie: adminCookie }, redirect: 'manual' })
-assert.ok((await response.text()).includes('관리자 권한이 없습니다'), 'allowlisted users with unverified email must be denied')
-
-// Only the two synthetic local users are modified; production verification must come from an identity provider.
-execFileSync('npx', ['wrangler', 'd1', 'execute', 'talkie-db', '--local', '--command', `UPDATE "user" SET "emailVerified" = 1 WHERE email IN ('${email}', '${adminEmail}')`], { stdio: 'pipe' })
-response = await fetch(`${base}/admin`, { headers: { cookie }, redirect: 'manual' })
-assert.ok((await response.text()).includes('관리자 권한이 없습니다'), 'verified but unlisted users must be denied')
-response = await fetch(`${base}/admin`, { headers: { cookie: adminCookie }, redirect: 'manual' })
-assert.ok((await response.text()).includes('관리자 권한이 없습니다'), 'verified allowlisted users must be denied until session authentication is verified')
+const adminPage = await response.text()
+if (process.env.TALKIE_TEST_ADMIN_DENIED === '1') {
+  assert.ok(adminPage.includes('관리자 권한이 없습니다'), 'invalid admin configuration must deny access')
+} else {
+  assert.ok(adminPage.includes('관리자님'), 'allowlisted users must reach the admin page without email verification')
+  assert.ok(!adminPage.includes('관리자 권한이 없습니다'), 'allowlisted users must not see access denied')
+}
+response = await request('get-session', undefined, adminCookie)
+assert.equal((await response.json()).user.emailVerified, false, 'admin signup must not require email verification')
+response = await request('sign-up/email', { name: 'Another Admin', email: adminEmail.toUpperCase(), password })
+assert.equal(response.ok, false, 'a second signup cannot take an existing email, including with different casing')
 response = await request('sign-out', {}, cookie)
 assert.equal(response.ok, true, 'sign-out must succeed')
 response = await request('get-session', undefined, cookie)

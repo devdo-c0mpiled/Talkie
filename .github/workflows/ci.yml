@@ -30,7 +30,7 @@ jobs:
           export TALKIE_TEST_ADMIN_EMAIL="admin-$(openssl rand -hex 12)@example.test"
           printf 'BETTER_AUTH_URL=http://127.0.0.1:3000\nBETTER_AUTH_SECRET=' > .dev.vars
           openssl rand -base64 32 >> .dev.vars
-          printf 'ADMIN_EMAILS= %s , another@example.test\n' "${TALKIE_TEST_ADMIN_EMAIL^^}" >> .dev.vars
+          printf 'ADMIN_EMAILS= %s , second@example.test, third@example.test, fourth@example.test\n' "${TALKIE_TEST_ADMIN_EMAIL^^}" >> .dev.vars
           printf 'GOOGLE_CLIENT_ID=synthetic-client-id\nGOOGLE_CLIENT_SECRET=synthetic-client-secret\n' >> .dev.vars
           npx wrangler d1 migrations apply talkie-db --local
           npm run dev -- --host 127.0.0.1 --port 3000 --strictPort > /tmp/talkie-dev.log 2>&1 &
@@ -40,6 +40,25 @@ jobs:
             if curl --silent --output /dev/null http://127.0.0.1:3000/login; then
               npm run test:auth
               npm run test:google
+              exit 0
+            fi
+            sleep 2
+          done
+          cat /tmp/talkie-dev.log
+          exit 1
+      - name: Check missing admin configuration denies access
+        run: |
+          export TALKIE_TEST_ADMIN_EMAIL="admin-$(openssl rand -hex 12)@example.test"
+          export TALKIE_TEST_ADMIN_DENIED=1
+          export TALKIE_TEST_URL=http://127.0.0.1:3001
+          printf 'BETTER_AUTH_URL=http://127.0.0.1:3001\nBETTER_AUTH_SECRET=' > .dev.vars
+          openssl rand -base64 32 >> .dev.vars
+          npm run dev -- --host 127.0.0.1 --port 3001 --strictPort > /tmp/talkie-dev.log 2>&1 &
+          server_pid=$!
+          trap 'kill "$server_pid" 2>/dev/null || true' EXIT
+          for attempt in $(seq 1 30); do
+            if curl --silent --output /dev/null http://127.0.0.1:3001/login; then
+              npm run test:auth
               exit 0
             fi
             sleep 2
