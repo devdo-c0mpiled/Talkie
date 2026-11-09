@@ -1,0 +1,1 @@
+{"name":"talkie-hotel-relay-harness","private":true,"type":"module","scripts":{"test":"node --test test.mjs","start":"node serve.mjs"}}
