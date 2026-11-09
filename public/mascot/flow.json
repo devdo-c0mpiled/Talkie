@@ -1,0 +1,33 @@
+{
+  "grid": 64,
+  "rows": 4,
+  "columns": 4,
+  "channels": [
+    "forward_x",
+    "forward_y",
+    "backward_x",
+    "backward_y"
+  ],
+  "format": "little-endian float32, normalized cell coordinates, row-major",
+  "bytes": 1048576,
+  "max_displacement": [
+    0.013,
+    0.016,
+    0.019,
+    0.0195,
+    0.0972,
+    0.1183,
+    0.0835,
+    0.0267,
+    0.0197,
+    0.0385,
+    0.034,
+    0.0221,
+    0.0336,
+    0.0295,
+    0.0316,
+    0.0418
+  ],
+  "source": "sprites.png",
+  "method": "bidirectional Farneback optical flow; runtime interpolation"
+}

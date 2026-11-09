@@ -9,6 +9,7 @@ export function SiteShell({ children }: { children: ReactNode }) {
         <Link to="/" className="logo" aria-label="Talkie 홈"><span className="logo-mark">✳</span> talkie<span className="logo-dot">.</span></Link>
         <nav aria-label="주 메뉴">
           <a href="/#how-it-works">서비스 소개</a>
+          <Link to="/poc">음성 테스트</Link>
           <Link to="/admin" className="nav-admin">숍 관리자 <span aria-hidden="true">↗</span></Link>
         </nav>
       </header>
