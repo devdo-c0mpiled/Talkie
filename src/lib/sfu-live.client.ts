@@ -13,6 +13,7 @@ type Options = {
   startBridge: (track: Track) => Promise<Track>
   stopBridge: (track: Track) => Promise<void>
   rtcConfiguration?: RTCConfiguration
+  signal?: AbortSignal
   onError?: (error: Error) => void
 }
 
@@ -75,6 +76,7 @@ export async function startSfuLive(options: Options): Promise<{ output: MediaStr
   function stop(): Promise<void> {
     if (stopPromise) return stopPromise
     stopped = true
+    options.signal?.removeEventListener('abort', abort)
     for (const peer of peers) peer.close()
     for (const track of input?.getTracks() ?? []) track.stop()
     for (const track of output?.getTracks() ?? []) track.stop()
@@ -96,6 +98,10 @@ export async function startSfuLive(options: Options): Promise<{ output: MediaStr
     })
     return stopPromise
   }
+
+  function abort() { void stop().catch(() => {}) }
+  options.signal?.addEventListener('abort', abort, { once: true })
+  if (options.signal?.aborted) abort()
 
   function peer(): RTCPeerConnection {
     const pc = new RTCPeerConnection(config)
@@ -123,7 +129,12 @@ export async function startSfuLive(options: Options): Promise<{ output: MediaStr
   }
 
   try {
+    if (stopped) throw new Error('SFU connection closed')
     input = await navigator.mediaDevices.getUserMedia({ audio: { sampleRate: 48000, channelCount: 1 }, video: false })
+    if (stopped) {
+      for (const track of input.getTracks()) track.stop()
+      throw new Error('SFU connection closed')
+    }
     const audio = input.getAudioTracks()[0]
     if (!audio) throw new Error('Microphone has no audio track')
     const publisher = peer()
@@ -166,7 +177,16 @@ export async function startSfuLive(options: Options): Promise<{ output: MediaStr
     if (subscription.sessionDescription.type !== 'offer') throw new Error('Expected SFU offer')
     receiver.addEventListener('track', event => {
       if (stopped) event.track.stop()
-      else if (event.track.kind === 'audio' && event.transceiver.mid === subscription.tracks[0].mid) output?.addTrack(event.track)
+      else if (event.track.kind === 'audio' && event.transceiver.mid === subscription.tracks[0].mid) {
+        const ended = () => {
+          if (stopped) return
+          const error = new Error('SFU output audio ended')
+          void stop().then(() => options.onError?.(error), cleanupError => options.onError?.(new AggregateError([error, cleanupError], 'SFU audio and cleanup failed')))
+        }
+        event.track.addEventListener('ended', ended, { once: true })
+        if (event.track.readyState === 'ended') ended()
+        else output?.addTrack(event.track)
+      }
     })
     await receiver.setRemoteDescription(subscription.sessionDescription)
     await receiver.setLocalDescription(await receiver.createAnswer())

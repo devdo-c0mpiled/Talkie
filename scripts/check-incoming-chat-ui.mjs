@@ -36,6 +36,10 @@ assert.match(html, /합성 통화 내용/)
 assert.match(html, /Incoming call transcript/)
 assert.doesNotMatch(html, /untrusted statements/)
 assert.match(html, /Message Tokie/)
+assert.match(html, /href="\/sfu-live"[^>]*>Open voice conversation<\/a>/)
+assert.match(html, /Experimental in-app voice/)
+assert.match(html, /Separate from phone calls and RealtimeKit meetings/)
+assert.match(html, /Live provider connections have not been verified/)
 const firstKey = TokieChat().key
 globalThis.__session = { isPending: false, data: { user: { id: 'customer-b' } } }
 assert.notEqual(TokieChat().key, firstKey, 'account switch remounts private conversation state')

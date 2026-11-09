@@ -5,7 +5,7 @@ import { build } from 'esbuild'
 const built = await build({ entryPoints: ['src/lib/sfu-live.client.ts'], bundle: true, write: false, platform: 'node', format: 'esm' })
 const { startSfuLive } = await import(`data:text/javascript;base64,${Buffer.from(built.outputFiles[0].contents).toString('base64')}`)
 
-class Track {
+class Track extends EventTarget {
   kind = 'audio'
   stopped = false
   stop() { this.stopped = true }
@@ -60,14 +60,17 @@ const options = {
   async startBridge(source) { assert.equal(source.sessionId, 'session-1'); return { sessionId: 'bridge-session', trackName: 'assistant' } },
   async stopBridge(source) { stops.push(source) },
 }
-const result = await startSfuLive(options)
+const normalErrors = []
+const result = await startSfuLive({ ...options, onError: error => normalErrors.push(error) })
 assert.deepEqual(requests.map(request => request.operation), ['session/new', 'tracks/new', 'session/new', 'tracks/new', 'renegotiate'])
 assert.equal(requests[1].body.tracks[0].location, 'local')
 assert.deepEqual(requests[3].body.tracks, [{ location: 'remote', sessionId: 'bridge-session', trackName: 'assistant' }])
 assert.deepEqual(requests[4].body.sessionDescription, { type: 'answer', sdp: 'local answer' })
 assert.equal(result.output.getAudioTracks().length, 1)
 await result.stop()
+result.output.getAudioTracks()[0].dispatchEvent(new Event('ended'))
 await result.stop()
+assert.deepEqual(normalErrors, [])
 assert.deepEqual(requests.filter(request => request.operation === 'tracks/close').map(request => [request.sessionId, request.body]), [
   ['session-1', { tracks: [{ mid: '0' }], force: true }],
   ['session-2', { tracks: [{ mid: '1' }], force: true }],
@@ -128,4 +131,32 @@ connecting.dispatchEvent(new Event('connectionstatechange'))
 releaseTrack({ tracks: [{ mid: '0' }], sessionDescription: { type: 'answer', sdp: 'sfu answer' } })
 await assert.rejects(pendingStart, /connection closed/)
 assert.equal(requests.filter(request => request.operation === 'tracks/close').length, closeCount + 1)
+session = 0
+const errors = []
+let notifyError
+const errorReported = new Promise(resolve => { notifyError = resolve })
+const endedCall = await startSfuLive({ ...options, onError(error) { errors.push(error); notifyError() } })
+const remoteAudio = endedCall.output.getAudioTracks()[0]
+const stopCount = stops.length
+const closesBeforeEnd = requests.filter(request => request.operation === 'tracks/close').length
+remoteAudio.dispatchEvent(new Event('ended'))
+await Promise.race([errorReported, new Promise((_, reject) => setTimeout(() => reject(new Error('ended audio did not report failure')), 100))])
+assert.match(errors[0].message, /audio.*ended/i)
+assert.equal(errors.length, 1)
+assert.equal(stops.length, stopCount + 1)
+assert.equal(requests.filter(request => request.operation === 'tracks/close').length, closesBeforeEnd + 2)
+assert.equal(microphone.stopped, true)
+assert.ok(Peer.all.every(peer => peer.connectionState === 'closed'))
+await endedCall.stop()
+assert.equal(stops.length, stopCount + 1)
+session = 0
+failClose = true
+let notifyCleanupError
+const cleanupErrorReported = new Promise(resolve => { notifyCleanupError = resolve })
+const cleanupCall = await startSfuLive({ ...options, onError: notifyCleanupError })
+cleanupCall.output.getAudioTracks()[0].dispatchEvent(new Event('ended'))
+const cleanupError = await Promise.race([cleanupErrorReported, new Promise((_, reject) => setTimeout(() => reject(new Error('cleanup failure was not reported')), 100))])
+assert.match(cleanupError.message, /audio and cleanup failed/i)
+assert.ok(cleanupError instanceof AggregateError)
+failClose = false
 console.log('SFU Live client checks passed')

@@ -115,6 +115,8 @@ function Account() {
         <h1>반가워요,<br /><em>{user.name}님.</em></h1>
         <p>{user.email} 계정으로 로그인했습니다.</p>
         <p><a href="/listen">진행 중인 전화 듣기</a></p>
+        <p><a href="/sfu-live">AI 음성 대화</a></p>
+        <p><a href="/managed-calls">관리형 통화 기록과 발신</a></p>
         {phoneState.kind === 'loading' && <p role="status">번호를 불러오는 중입니다.</p>}
         {phoneState.kind === 'error' && <div role="alert"><p>{phoneState.message}</p>{phoneState.signedOut ? <Link to="/login">로그인하기</Link> : <button type="button" onClick={() => setReload((value) => value + 1)}>다시 불러오기</button>}</div>}
         {phoneState.kind === 'ready' && <>

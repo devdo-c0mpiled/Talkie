@@ -15,12 +15,16 @@ import { Route as AdminRouteImport } from './routes/admin'
 import { Route as ChatRouteImport } from './routes/chat'
 import { Route as ListenRouteImport } from './routes/listen'
 import { Route as LoginRouteImport } from './routes/login'
+import { Route as ManagedCallsRouteImport } from './routes/managed-calls'
+import { Route as SfuLiveRouteImport } from './routes/sfu-live'
 import { Route as SignupRouteImport } from './routes/signup'
 import { Route as ApiAgentSettingsRouteImport } from './routes/api.agent-settings'
 import { Route as ApiChatRouteImport } from './routes/api.chat'
 import { Route as ApiIncomingRouteImport } from './routes/api.incoming'
+import { Route as ApiManagedCallsRouteImport } from './routes/api.managed-calls'
 import { Route as ApiPersonalPhoneRouteImport } from './routes/api.personal-phone'
 import { Route as ApiRealtimekitRouteImport } from './routes/api.realtimekit'
+import { Route as ApiSfuLiveRouteImport } from './routes/api.sfu-live'
 import { Route as ApiTelephoneListenRouteImport } from './routes/api.telephone-listen'
 import { Route as BIdRouteImport } from './routes/b.$id'
 import { Route as ApiAdminCallsRouteImport } from './routes/api.admin.calls'
@@ -60,6 +64,16 @@ const LoginRoute = LoginRouteImport.update({
   path: '/login',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ManagedCallsRoute = ManagedCallsRouteImport.update({
+  id: '/managed-calls',
+  path: '/managed-calls',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const SfuLiveRoute = SfuLiveRouteImport.update({
+  id: '/sfu-live',
+  path: '/sfu-live',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const SignupRoute = SignupRouteImport.update({
   id: '/signup',
   path: '/signup',
@@ -80,6 +94,11 @@ const ApiIncomingRoute = ApiIncomingRouteImport.update({
   path: '/api/incoming',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiManagedCallsRoute = ApiManagedCallsRouteImport.update({
+  id: '/api/managed-calls',
+  path: '/api/managed-calls',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiPersonalPhoneRoute = ApiPersonalPhoneRouteImport.update({
   id: '/api/personal-phone',
   path: '/api/personal-phone',
@@ -88,6 +107,11 @@ const ApiPersonalPhoneRoute = ApiPersonalPhoneRouteImport.update({
 const ApiRealtimekitRoute = ApiRealtimekitRouteImport.update({
   id: '/api/realtimekit',
   path: '/api/realtimekit',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiSfuLiveRoute = ApiSfuLiveRouteImport.update({
+  id: '/api/sfu-live',
+  path: '/api/sfu-live',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiTelephoneListenRoute = ApiTelephoneListenRouteImport.update({
@@ -138,12 +162,16 @@ export interface FileRoutesByFullPath {
   '/chat': typeof ChatRoute
   '/listen': typeof ListenRoute
   '/login': typeof LoginRoute
+  '/managed-calls': typeof ManagedCallsRoute
+  '/sfu-live': typeof SfuLiveRoute
   '/signup': typeof SignupRoute
   '/api/agent-settings': typeof ApiAgentSettingsRoute
   '/api/chat': typeof ApiChatRoute
   '/api/incoming': typeof ApiIncomingRoute
+  '/api/managed-calls': typeof ApiManagedCallsRoute
   '/api/personal-phone': typeof ApiPersonalPhoneRoute
   '/api/realtimekit': typeof ApiRealtimekitRoute
+  '/api/sfu-live': typeof ApiSfuLiveRoute
   '/api/telephone-listen': typeof ApiTelephoneListenRoute
   '/b/$id': typeof BIdRoute
   '/api/admin/calls': typeof ApiAdminCallsRoute
@@ -160,12 +188,16 @@ export interface FileRoutesByTo {
   '/chat': typeof ChatRoute
   '/listen': typeof ListenRoute
   '/login': typeof LoginRoute
+  '/managed-calls': typeof ManagedCallsRoute
+  '/sfu-live': typeof SfuLiveRoute
   '/signup': typeof SignupRoute
   '/api/agent-settings': typeof ApiAgentSettingsRoute
   '/api/chat': typeof ApiChatRoute
   '/api/incoming': typeof ApiIncomingRoute
+  '/api/managed-calls': typeof ApiManagedCallsRoute
   '/api/personal-phone': typeof ApiPersonalPhoneRoute
   '/api/realtimekit': typeof ApiRealtimekitRoute
+  '/api/sfu-live': typeof ApiSfuLiveRoute
   '/api/telephone-listen': typeof ApiTelephoneListenRoute
   '/b/$id': typeof BIdRoute
   '/api/admin/calls': typeof ApiAdminCallsRoute
@@ -183,12 +215,16 @@ export interface FileRoutesById {
   '/chat': typeof ChatRoute
   '/listen': typeof ListenRoute
   '/login': typeof LoginRoute
+  '/managed-calls': typeof ManagedCallsRoute
+  '/sfu-live': typeof SfuLiveRoute
   '/signup': typeof SignupRoute
   '/api/agent-settings': typeof ApiAgentSettingsRoute
   '/api/chat': typeof ApiChatRoute
   '/api/incoming': typeof ApiIncomingRoute
+  '/api/managed-calls': typeof ApiManagedCallsRoute
   '/api/personal-phone': typeof ApiPersonalPhoneRoute
   '/api/realtimekit': typeof ApiRealtimekitRoute
+  '/api/sfu-live': typeof ApiSfuLiveRoute
   '/api/telephone-listen': typeof ApiTelephoneListenRoute
   '/b/$id': typeof BIdRoute
   '/api/admin/calls': typeof ApiAdminCallsRoute
@@ -207,12 +243,16 @@ export interface FileRouteTypes {
     | '/chat'
     | '/listen'
     | '/login'
+    | '/managed-calls'
+    | '/sfu-live'
     | '/signup'
     | '/api/agent-settings'
     | '/api/chat'
     | '/api/incoming'
+    | '/api/managed-calls'
     | '/api/personal-phone'
     | '/api/realtimekit'
+    | '/api/sfu-live'
     | '/api/telephone-listen'
     | '/b/$id'
     | '/api/admin/calls'
@@ -229,12 +269,16 @@ export interface FileRouteTypes {
     | '/chat'
     | '/listen'
     | '/login'
+    | '/managed-calls'
+    | '/sfu-live'
     | '/signup'
     | '/api/agent-settings'
     | '/api/chat'
     | '/api/incoming'
+    | '/api/managed-calls'
     | '/api/personal-phone'
     | '/api/realtimekit'
+    | '/api/sfu-live'
     | '/api/telephone-listen'
     | '/b/$id'
     | '/api/admin/calls'
@@ -251,12 +295,16 @@ export interface FileRouteTypes {
     | '/chat'
     | '/listen'
     | '/login'
+    | '/managed-calls'
+    | '/sfu-live'
     | '/signup'
     | '/api/agent-settings'
     | '/api/chat'
     | '/api/incoming'
+    | '/api/managed-calls'
     | '/api/personal-phone'
     | '/api/realtimekit'
+    | '/api/sfu-live'
     | '/api/telephone-listen'
     | '/b/$id'
     | '/api/admin/calls'
@@ -274,12 +322,16 @@ export interface RootRouteChildren {
   ChatRoute: typeof ChatRoute
   ListenRoute: typeof ListenRoute
   LoginRoute: typeof LoginRoute
+  ManagedCallsRoute: typeof ManagedCallsRoute
+  SfuLiveRoute: typeof SfuLiveRoute
   SignupRoute: typeof SignupRoute
   ApiAgentSettingsRoute: typeof ApiAgentSettingsRoute
   ApiChatRoute: typeof ApiChatRoute
   ApiIncomingRoute: typeof ApiIncomingRoute
+  ApiManagedCallsRoute: typeof ApiManagedCallsRoute
   ApiPersonalPhoneRoute: typeof ApiPersonalPhoneRoute
   ApiRealtimekitRoute: typeof ApiRealtimekitRoute
+  ApiSfuLiveRoute: typeof ApiSfuLiveRoute
   ApiTelephoneListenRoute: typeof ApiTelephoneListenRoute
   BIdRoute: typeof BIdRoute
   ApiAdminCallsRoute: typeof ApiAdminCallsRoute
@@ -334,6 +386,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof LoginRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/managed-calls': {
+      id: '/managed-calls'
+      path: '/managed-calls'
+      fullPath: '/managed-calls'
+      preLoaderRoute: typeof ManagedCallsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/sfu-live': {
+      id: '/sfu-live'
+      path: '/sfu-live'
+      fullPath: '/sfu-live'
+      preLoaderRoute: typeof SfuLiveRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/signup': {
       id: '/signup'
       path: '/signup'
@@ -362,6 +428,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiIncomingRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/managed-calls': {
+      id: '/api/managed-calls'
+      path: '/api/managed-calls'
+      fullPath: '/api/managed-calls'
+      preLoaderRoute: typeof ApiManagedCallsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/personal-phone': {
       id: '/api/personal-phone'
       path: '/api/personal-phone'
@@ -374,6 +447,13 @@ declare module '@tanstack/react-router' {
       path: '/api/realtimekit'
       fullPath: '/api/realtimekit'
       preLoaderRoute: typeof ApiRealtimekitRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/sfu-live': {
+      id: '/api/sfu-live'
+      path: '/api/sfu-live'
+      fullPath: '/api/sfu-live'
+      preLoaderRoute: typeof ApiSfuLiveRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/telephone-listen': {
@@ -442,12 +522,16 @@ const rootRouteChildren: RootRouteChildren = {
   ChatRoute: ChatRoute,
   ListenRoute: ListenRoute,
   LoginRoute: LoginRoute,
+  ManagedCallsRoute: ManagedCallsRoute,
+  SfuLiveRoute: SfuLiveRoute,
   SignupRoute: SignupRoute,
   ApiAgentSettingsRoute: ApiAgentSettingsRoute,
   ApiChatRoute: ApiChatRoute,
   ApiIncomingRoute: ApiIncomingRoute,
+  ApiManagedCallsRoute: ApiManagedCallsRoute,
   ApiPersonalPhoneRoute: ApiPersonalPhoneRoute,
   ApiRealtimekitRoute: ApiRealtimekitRoute,
+  ApiSfuLiveRoute: ApiSfuLiveRoute,
   ApiTelephoneListenRoute: ApiTelephoneListenRoute,
   BIdRoute: BIdRoute,
   ApiAdminCallsRoute: ApiAdminCallsRoute,

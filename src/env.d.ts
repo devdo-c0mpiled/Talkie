@@ -15,6 +15,7 @@ declare namespace Cloudflare {
     ELEVENLABS_API_KEY?: string
     CLAWOPS_API_KEY?: string
     CLAWOPS_FROM_NUMBER?: string
+    CLAWOPS_MANAGED_AGENT_ID?: string
     SFU_LIVE: DurableObjectNamespace
     TELEPHONE_LISTEN: DurableObjectNamespace
     REALTIME_SFU_APP_ID?: string
