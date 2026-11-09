@@ -117,24 +117,51 @@ const profile = await mkdtemp(join(tmpdir(), 'talkie-incoming-ui-'))
 let browser
 let resolveResult
 const result = new Promise(resolve => { resolveResult = resolve })
+let documentRequests = 0
+let fixtureRequests = 0
+const browserErrors = new Set()
+function browserDiagnostics() {
+  return `document requests=${documentRequests}, fixture requests=${fixtureRequests}, Firefox stderr categories=${[...browserErrors].join(',') || 'none'}`
+}
 const server = createServer((request, response) => {
-  if (request.url === '/fixture.js') { response.writeHead(200, { 'Content-Type': 'text/javascript' }); response.end(browserBundle.outputFiles[0].text); return }
+  if (request.url === '/fixture.js') { fixtureRequests++; response.writeHead(200, { 'Content-Type': 'text/javascript' }); response.end(browserBundle.outputFiles[0].text); return }
   if (request.url === '/result' && request.method === 'POST') {
     let body = ''
     request.on('data', chunk => { body += chunk })
     request.on('end', () => { response.end('ok'); resolveResult(JSON.parse(body)) })
     return
   }
+  if (request.url === '/') documentRequests++
   response.writeHead(200, { 'Content-Type': 'text/html' })
-  response.end('<div id="root"></div><script type="module" src="/fixture.js"></script>')
+  response.end(`<div id="root"></div><script>
+    const reportPageError = (kind, error) => {
+      const name = ['Error', 'TypeError', 'ReferenceError', 'SyntaxError', 'RangeError'].includes(error?.name) ? error.name : 'unknown';
+      fetch('/result', { method: 'POST', body: JSON.stringify({ ok: false, error: kind + ': ' + name }) });
+    };
+    window.addEventListener('error', event => {
+      if (event.target === window || (event.target instanceof HTMLScriptElement && event.target.src.endsWith('/fixture.js'))) reportPageError('Page or fixture error', event.error);
+    }, true);
+    window.addEventListener('unhandledrejection', event => reportPageError('Unhandled promise rejection', event.reason));
+  </script><script type="module" src="/fixture.js"></script>`)
 })
 try {
   await new Promise(resolve => server.listen(0, '127.0.0.1', resolve))
-  browser = spawn('firefox', ['--headless', '--no-remote', '--profile', profile, `http://127.0.0.1:${server.address().port}/`], { stdio: 'ignore' })
+  browser = spawn('firefox', ['--headless', '--no-remote', '--profile', profile, `http://127.0.0.1:${server.address().port}/`], { stdio: ['ignore', 'ignore', 'pipe'] })
+  // Report only fixed categories from stderr; browser output can contain host paths or other private data.
+  browser.stderr.on('data', chunk => {
+    const output = String(chunk).toLowerCase()
+    for (const category of ['sandbox', 'permission', 'display', 'profile', 'xpcom', 'graphics', 'error']) {
+      if (output.includes(category)) browserErrors.add(category)
+    }
+  })
+  const browserStopped = new Promise(resolve => {
+    browser.once('error', error => resolve({ ok: false, error: `Firefox failed to start (${error.code || 'unknown'}); ${browserDiagnostics()}` }))
+    browser.once('exit', (code, signal) => resolve({ ok: false, error: `Firefox exited (code=${code}, signal=${signal}); ${browserDiagnostics()}` }))
+  })
   let timer
-  const outcome = await Promise.race([result, new Promise(resolve => { timer = setTimeout(() => resolve({ ok: false, error: 'Headless browser timed out' }), 20000) })])
+  const outcome = await Promise.race([result, browserStopped, new Promise(resolve => { timer = setTimeout(() => resolve({ ok: false, error: `Headless browser timed out; ${browserDiagnostics()}` }), 20000) })])
   clearTimeout(timer)
-  assert.equal(outcome.ok, true, outcome.error)
+  assert.equal(outcome.ok, true, `${outcome.error}; ${browserDiagnostics()}`)
   console.log('Real React state survives a transient polling failure and clears on 401')
 } finally {
   browser?.kill('SIGKILL')
