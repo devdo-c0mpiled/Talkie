@@ -35,6 +35,12 @@ export async function getAdminSession(headers: Headers) {
   const session = await getAuth().api.getSession({ headers })
   if (!session) return { status: 'anonymous' } as const
 
-  // Keep all server-side admin access closed until the session proves a trusted provider and email ownership.
-  return { status: 'denied' } as const
+  const emails = (env.ADMIN_EMAILS ?? '').split(',').map((email) => email.trim().toLowerCase())
+  if (emails.length !== 4 || new Set(emails).size !== 4 || emails.some((email) => !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email))) {
+    return { status: 'denied' } as const
+  }
+
+  return emails.includes(session.user.email.trim().toLowerCase())
+    ? { status: 'allowed', name: session.user.name, email: session.user.email } as const
+    : { status: 'denied' } as const
 }
