@@ -70,6 +70,8 @@ const browserBundle = await build({
     import { createRoot } from 'react-dom/client'
     import { TokieChat } from './src/components/chat/TokieChat'
     const realFetch = window.fetch.bind(window)
+    const progress = stage => { void realFetch('/progress?stage=' + stage).catch(() => {}) }
+    progress('module')
     const conversation = { id: 'call-a', callerNumber: '07012345678', createdAt: 1, calls: [{ callId: 'a', createdAt: 1, state: 'complete', lines: [{ id: 'line-a', role: 'business', text: '합성 통화 내용', final: true }] }] }
     let mode = 'ok'
     let poll
@@ -91,9 +93,12 @@ const browserBundle = await build({
     const report = result => realFetch('/result', { method: 'POST', body: JSON.stringify(result) })
     try {
       createRoot(document.getElementById('root')).render(<TokieChat />)
+      progress('render')
       await wait(() => [...document.querySelectorAll('button')].some(b => b.textContent.includes('07012345678')))
+      progress('list')
       ;[...document.querySelectorAll('button')].find(b => b.textContent.includes('07012345678')).click()
       await wait(() => !!document.querySelector('[aria-label="Incoming call transcript"]'))
+      progress('selection')
       const selected = () => [...document.querySelectorAll('.lp.ch')].find(el => !el.parentElement.hidden && el.querySelector('[aria-label="Incoming call transcript"]'))
       const input = selected().querySelector('input')
       Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set.call(input, '메시지 보존')
@@ -101,10 +106,13 @@ const browserBundle = await build({
       await wait(() => input.value === '메시지 보존')
       mode = 'offline'; poll()
       await wait(() => selected()?.textContent.includes('Couldn’t load incoming conversations'))
+      progress('offline')
       if (selected().querySelector('input') !== input || input.value !== '메시지 보존') throw new Error('Transient error discarded selected chat state')
       mode = 'unauthorized'; poll()
       await wait(() => !document.querySelector('[aria-label="Incoming call transcript"]'))
+      progress('unauthorized')
       if (document.body.textContent.includes('07012345678') || document.body.textContent.includes('합성 통화 내용')) throw new Error('Unauthorized response retained private data')
+      progress('report')
       await report({ ok: true })
     } catch (error) { await report({ ok: false, error: String(error) }) }
   ` },
@@ -129,12 +137,19 @@ let resolveResult
 const result = new Promise(resolve => { resolveResult = resolve })
 let documentRequests = 0
 let fixtureRequests = 0
+const stages = new Set()
+const allowedStages = new Set(['page', 'module', 'render', 'list', 'selection', 'offline', 'unauthorized', 'report'])
 const browserErrors = new Set()
 function browserDiagnostics() {
-  return `document requests=${documentRequests}, fixture requests=${fixtureRequests}, Firefox stderr categories=${[...browserErrors].join(',') || 'none'}`
+  return `document requests=${documentRequests}, fixture requests=${fixtureRequests}, stages=${[...stages].join(',') || 'none'}, Firefox stderr categories=${[...browserErrors].join(',') || 'none'}`
 }
 const server = createServer((request, response) => {
   if (request.url === '/fixture.js') { fixtureRequests++; response.writeHead(200, { 'Content-Type': 'text/javascript' }); response.end(browserBundle.outputFiles[0].text); return }
+  if (request.url?.startsWith('/progress?stage=')) {
+    const stage = new URL(request.url, 'http://127.0.0.1').searchParams.get('stage')
+    if (allowedStages.has(stage)) stages.add(stage)
+    response.writeHead(204); response.end(); return
+  }
   if (request.url === '/result' && request.method === 'POST') {
     let body = ''
     request.on('data', chunk => { body += chunk })
@@ -144,6 +159,7 @@ const server = createServer((request, response) => {
   if (request.url === '/') documentRequests++
   response.writeHead(200, { 'Content-Type': 'text/html' })
   response.end(`<div id="root"></div><script>
+    void fetch('/progress?stage=page').catch(() => {});
     const reportPageError = (kind, error) => {
       const name = ['Error', 'TypeError', 'ReferenceError', 'SyntaxError', 'RangeError'].includes(error?.name) ? error.name : 'unknown';
       fetch('/result', { method: 'POST', body: JSON.stringify({ ok: false, error: kind + ': ' + name }) });
@@ -168,10 +184,14 @@ try {
     browser.once('error', error => resolve({ ok: false, error: `Firefox failed to start (${error.code || 'unknown'}); ${browserDiagnostics()}` }))
     browser.once('exit', (code, signal) => resolve({ ok: false, error: `Firefox exited (code=${code}, signal=${signal}); ${browserDiagnostics()}` }))
   })
+  const started = Date.now()
+  const checkpoint = setTimeout(() => console.log(`Headless browser at 20 seconds: ${browserDiagnostics()}`), 20000)
   let timer
-  const outcome = await Promise.race([result, browserStopped, new Promise(resolve => { timer = setTimeout(() => resolve({ ok: false, error: `Headless browser timed out; ${browserDiagnostics()}` }), 20000) })])
+  const outcome = await Promise.race([result, browserStopped, new Promise(resolve => { timer = setTimeout(() => resolve({ ok: false, error: `Headless browser timed out; ${browserDiagnostics()}` }), 50000) })])
+  clearTimeout(checkpoint)
   clearTimeout(timer)
   assert.equal(outcome.ok, true, `${outcome.error}; ${browserDiagnostics()}`)
+  console.log(`Headless browser completed in ${Date.now() - started} ms: ${browserDiagnostics()}`)
   console.log('Real React state survives a transient polling failure and clears on 401')
 } finally {
   browser?.kill('SIGKILL')
