@@ -4,7 +4,7 @@ import { env } from 'cloudflare:workers'
 import { chat } from '@tanstack/ai'
 import { z } from 'zod'
 import { getOpenAiChat } from './ai.server'
-import type { CallResult, CallResultLine } from './call-result'
+import type { CallAnalysis, CallResult, CallResultLine } from './call-result'
 import { formatClock } from './call-result'
 import { fetchCallRecording, getCallAnsweredAt } from './clawops.server'
 import type { CallReport } from './clawops.server'
@@ -81,10 +81,11 @@ export async function loadCallResult(id: string): Promise<{ result: CallResult; 
  * reads out of the transcript, plus the transcript itself in Korean and in the traveler's language.
  * Null when the call has no line-by-line transcript to build it from.
  */
-export async function prepareCallResult(callId: string, report: CallReport, business: string, language: string): Promise<CallResult | null> {
-  if (report.outcome !== 'completed' || !report.lines.length) return null
+export async function prepareCallResult(callId: string, report: CallReport, business: string, language: string, analysis: CallAnalysis): Promise<CallResult | null> {
+  if (report.state !== 'done' || report.outcome !== 'completed' || report.transcriptIncomplete || !report.lines.length) return null
   const [existing, answeredAt] = await Promise.all([findByCall(callId), getCallAnsweredAt(callId)])
-  if (existing) return existing
+  const matchesConfirmation = (status: CallResult['status']) => (status === 'confirmed') === (analysis.status === 'available' && analysis.reservation.status === 'confirmed')
+  if (existing) return matchesConfirmation(existing.status) ? existing : null
 
   const lines = report.lines.map(({ id, role, text, startedAt }): CallResultLine => ({
     id,
@@ -107,6 +108,7 @@ export async function prepareCallResult(callId: string, report: CallReport, busi
     reasoning: 'off',
   })
 
+  if (!matchesConfirmation(summary.status)) return null
   const translations = await translating
   const known = new Set(lines.map(({ id }) => id))
   // Models sometimes answer with several ids or the whole line; keep the first id that exists.
@@ -134,7 +136,8 @@ export async function prepareCallResult(callId: string, report: CallReport, busi
 
   // Two lookups of the same call can race; the first one stored wins and both return it.
   await env.DB.prepare('INSERT INTO call_results (id, call_id, created_at, data) VALUES (?, ?, ?, ?) ON CONFLICT(call_id) DO NOTHING').bind(result.id, callId, Date.now(), JSON.stringify(result)).run()
-  return (await findByCall(callId)) ?? result
+  const stored = (await findByCall(callId)) ?? result
+  return matchesConfirmation(stored.status) ? stored : null
 }
 
 /** GET /api/b/$id/recording: the call's recording, for anyone who has the page's address. */

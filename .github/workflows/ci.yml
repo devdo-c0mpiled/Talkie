@@ -25,6 +25,8 @@ jobs:
       - run: npm run build
       - run: npm run deploy:check
       - run: npm run test:ai
+      - run: npm run test:live
+      - run: npm run test:worker
       - name: Check authentication against local D1
         run: |
           export TALKIE_TEST_ADMIN_EMAIL="admin-$(openssl rand -hex 12)@example.test"

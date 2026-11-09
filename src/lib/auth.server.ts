@@ -1,5 +1,7 @@
 import { env } from 'cloudflare:workers'
 import { betterAuth } from 'better-auth'
+import { APIError } from 'better-auth/api'
+import { getOrCreateCustomer, validDesignatedEmail } from './customers.server'
 
 export function getAuth() {
   if (!env.BETTER_AUTH_SECRET || env.BETTER_AUTH_SECRET.length < 32 || !env.BETTER_AUTH_URL) {
@@ -8,6 +10,16 @@ export function getAuth() {
 
   return betterAuth({
     database: env.DB,
+    databaseHooks: {
+      user: { create: {
+        before: async () => {
+          if (env.CUSTOMER_0001_EMAIL?.trim() && !validDesignatedEmail(env.CUSTOMER_0001_EMAIL)) {
+            throw new APIError('INTERNAL_SERVER_ERROR', { message: 'Customer configuration unavailable' })
+          }
+        },
+        after: async (user) => { await ensureCustomer(user.id) },
+      } },
+    },
     secret: env.BETTER_AUTH_SECRET,
     baseURL: env.BETTER_AUTH_URL,
     emailAndPassword: { enabled: true },
@@ -43,4 +55,10 @@ export async function getAdminSession(headers: Headers) {
   return emails.includes(session.user.email.trim().toLowerCase())
     ? { status: 'allowed', name: session.user.name, email: session.user.email } as const
     : { status: 'denied' } as const
+}
+
+export async function ensureCustomer(userId: string) {
+  const result = await getOrCreateCustomer({ db: env.DB, userId, designatedEmail: env.CUSTOMER_0001_EMAIL })
+  if (result.kind !== 'ready') throw new APIError('INTERNAL_SERVER_ERROR', { message: 'Customer unavailable' })
+  return result.customer
 }
