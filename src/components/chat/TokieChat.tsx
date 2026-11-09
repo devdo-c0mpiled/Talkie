@@ -4,11 +4,12 @@ import type { CSSProperties, SubmitEvent } from 'react'
 import tokie from '../../assets/landing/tokie.webp'
 import {
   CALL_ENDED_MARKER,
-  CALL_NUMBER_STORAGE_KEY,
+  CALL_INTENT_STORAGE_KEY,
   callBusinessDef,
+  getCallResultDef,
   issueKoreanNumberDef,
 } from '../../lib/chat-tools'
-import type { CallLine, CallPlaced, CallRequest, KoreanNumber } from '../../lib/chat-tools'
+import type { CallIntent, CallLine, CallPlaced, CallRequest, KoreanNumber } from '../../lib/chat-tools'
 import { LineIcon } from '../landing/LineIcon'
 import { HotelRehearsal } from './HotelRehearsal'
 import { HotelWorkflowCard } from './HotelWorkflowCard'
@@ -19,12 +20,40 @@ import type { Workflow } from '../../lib/hotel-workflow'
 
 const DIGIT_HEIGHT = 34
 const CALL_POLL_MS = 1500
+// Failed lookups in a row before a call is given up on; a single hiccup must not end a live call.
+const CALL_POLL_TRIES = 4
+// A poll this late means the tab was asleep, so the call clock can no longer be trusted.
+const CALL_CLOCK_SLACK_MS = 5000
 // Shown before the traveler has said anything; it is not part of the conversation sent to the model.
 const GREETING = "Hi, I'm Tokie! Tell me what you want to book in Korea and I'll help, in your language."
 const quickReplies = ['What will you say on the call?', 'Can you call them for me?']
+// How a call that nobody picked up is titled, by the outcome the call API reports.
+const UNANSWERED: Record<string, string> = { 'no-answer': 'No answer', busy: 'Line was busy', rejected: 'Call declined', canceled: 'Call canceled' }
 
 function isKoreanNumber(value: unknown): value is KoreanNumber {
   return typeof value === 'object' && value !== null && typeof (value as KoreanNumber).number === 'string' && typeof (value as KoreanNumber).activeUntil === 'string'
+}
+
+/** Seconds as m:ss. */
+function formatDuration(seconds: number) {
+  return `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, '0')}`
+}
+
+/** The call the visitor set up on the landing page, if they came from there. */
+function readCallIntent(): CallIntent | null {
+  try {
+    const stored = JSON.parse(sessionStorage.getItem(CALL_INTENT_STORAGE_KEY) ?? 'null') as CallIntent | null
+    return typeof stored?.number === 'string' ? stored : null
+  } catch {
+    return null
+  }
+}
+
+/** The traveler's first message, saying what they already told the landing page. */
+function openingMessage({ number, businessName, placeType }: CallIntent) {
+  if (businessName) return `Please call ${businessName} at ${number} for me.`
+  if (placeType) return `Please call this ${placeType} for me: ${number}`
+  return `Please call ${number} for me.`
 }
 
 function TokieAvatar() {
@@ -105,25 +134,49 @@ function CallApproval({ request, onDecide }: { request: CallRequest; onDecide: (
 
 type CallState = 'calling' | 'done'
 
+/** What has been said on a call, line by line. */
+function CallLines({ lines, quiet, recipient="Them" }: { lines: CallLine[]; quiet?: boolean; recipient?:string }) {
+  return (
+    // Quiet when the whole transcript is revealed at once, so a screen reader is not made to read all of it.
+    <ol className="ch-call-lines" lang="ko" aria-live={quiet ? 'off' : undefined}>
+      {lines.map(({ id, role, text, final }) => (
+        <li key={id} className={[role === 'agent' && 'is-tokie', !final && 'is-partial'].filter(Boolean).join(' ') || undefined}>
+          <span lang="en">{role === 'agent' ? 'Tokie' : recipient}</span>
+          {text}
+        </li>
+      ))}
+    </ol>
+  )
+}
+
 type CallLiveProps = {
   reference: string
   business: string
-  /** Called once, when the call is over. */
-  onDone: (reference: string) => void
+  phoneNumber?: string
+  /** Called once, when the call is over. `answered` says whether anybody picked up. */
+  onDone: (reference: string, answered: boolean) => void
   /** Called whenever something new was said, so the feed can keep it in view. */
   onActivity: () => void
 }
 
-/** Follows a placed call: shows what is being said as it happens, and reports once when the call is over. */
-function CallLive({ reference, business, onDone, onActivity }: CallLiveProps) {
+/**
+ * Follows a placed call and reports once when it is over. The card rings until somebody speaks,
+ * then shows what is being said with a running clock, and folds into a one-line summary at the end.
+ */
+function CallLive({ reference, business, phoneNumber, onDone, onActivity }: CallLiveProps) {
   const [state, setState] = useState<CallState>('calling')
+  const [outcome, setOutcome] = useState('')
   const [lines, setLines] = useState<CallLine[]>([])
   const [lookupError,setLookupError]=useState(false)
   const [resultPending,setResultPending]=useState(false)
   const [reservation,setReservation]=useState<ReservationResult|null>(null)
   const [retry,setRetry]=useState(0)
   const [recipient,setRecipient]=useState('Them')
-  const [outcome,setOutcome]=useState('')
+  // Seconds since the first words were heard, as far as this screen saw them: the call API gives no connect time.
+  // Null until then, and for good once the screen has missed part of the call.
+  const [seconds, setSeconds] = useState<number | null>(null)
+  const [open, setOpen] = useState(false)
+  const connectedAt = useRef<number | null>(null)
   // The latest callbacks, so the polling loop below never has to restart for them.
   const callbacks = useRef({ onDone, onActivity })
   callbacks.current = { onDone, onActivity }
@@ -132,8 +185,18 @@ function CallLive({ reference, business, onDone, onActivity }: CallLiveProps) {
     let stopped = false
     let timer: ReturnType<typeof setTimeout>
     let seen = ''
-    let failures=0
+    let due = 0
+    let failures = 0
+    let answered = false
+    let clockTrusted = true
+    const elapsed = () => (clockTrusted && connectedAt.current !== null ? Math.floor((Date.now() - connectedAt.current) / 1000) : null)
+    const clock = setInterval(() => setSeconds(elapsed()), 1000)
+    function schedule() {
+      due = Date.now() + CALL_POLL_MS
+      timer = setTimeout(poll, CALL_POLL_MS)
+    }
     async function poll() {
+      if (Date.now() - due > CALL_CLOCK_SLACK_MS) clockTrusted = false
       let next: CallState = 'calling'
       try {
         const response = await fetch(`/api/calls/${encodeURIComponent(reference)}`,{signal:AbortSignal.timeout(35000)})
@@ -148,13 +211,17 @@ function CallLive({ reference, business, onDone, onActivity }: CallLiveProps) {
           setRecipient(progress.conversationMode==='hotel_roleplay'?'Customer':'Hotel staff')
           if(progress.resultPending) {
             failures++
-            if(failures>=4){setLookupError(true);return}
+            if(failures>=4){setLookupError(true);clearInterval(clock);return}
           } else failures=0
           next = progress.resultPending?'calling':progress.state
+          answered ||= progress.lines.length>0 || (progress.state==='done'&&progress.outcome==='completed')
+          if(progress.state==='done'&&connectedAt.current===null)clockTrusted=false
           const signature = JSON.stringify(progress.lines)
           if (!stopped && signature !== seen) {
             seen = signature
+            if (progress.lines.length) connectedAt.current ??= Date.now()
             setLines(progress.lines)
+            setSeconds(elapsed())
             callbacks.current.onActivity()
           }
         } else {
@@ -164,58 +231,89 @@ function CallLive({ reference, business, onDone, onActivity }: CallLiveProps) {
         if(stopped)return
         setLookupError(true)
         failures++
-        if(failures>=4)return
+        if(failures>=4){clearInterval(clock);return}
       }
       if (stopped) return
       if (next !== 'done') {
-        timer = setTimeout(poll, CALL_POLL_MS)
+        schedule()
         return
       }
+      clearInterval(clock)
+      setSeconds(elapsed())
       setState('done')
-      callbacks.current.onDone(reference)
+      callbacks.current.onDone(reference, answered)
     }
-    timer = setTimeout(poll, CALL_POLL_MS)
+    schedule()
     return () => {
       stopped = true
       clearTimeout(timer)
+      clearInterval(clock)
     }
   }, [reference,retry])
 
+  const callFeedback=<>
+    {lookupError&&<p role="status">Couldn’t retrieve the call status. <button type="button" onClick={()=>{setLookupError(false);setRetry(x=>x+1)}}>Retry</button></p>}
+    {resultPending&&!lookupError&&<p role="status">Checking the call result…</p>}
+    {reservation&&<div className="ch-card-meta" aria-label="Reservation result">
+      <p>{{inquiry:'Inquiry only',requested:'Request received',confirmed:'Reservation confirmed',changed:'Reservation updated',cancelled:'Reservation cancelled',declined:'Request declined',unknown:'Result unconfirmed'}[reservation.status]}</p>
+      <p>{formatStayDate(reservation.checkIn)} → {formatStayDate(reservation.checkOut)}{reservation.durationText?` · ${reservation.durationText}`:''}</p>
+      {reservation.roomType&&<p>{reservation.roomType}</p>}
+      {reservation.guestName&&<p>{reservation.guestName}</p>}
+    </div>}
+  </>
+  if (state === 'done') {
+    const answered = outcome === 'completed' || lines.length > 0
+    const title = answered ? `Call ended${seconds === null ? '' : ` · ${formatDuration(seconds)}`}` : UNANSWERED[outcome] ?? 'Call didn’t connect'
+    return (
+      <div className="ch-call ch-call--end">
+        <div className="ch-call-row">
+          <span className="ch-phone ch-phone--off" aria-hidden="true"><LineIcon name="phone" /></span>
+          <div className="ch-call-who">
+            <p className="ch-call-title">{title}</p>
+            <p className="ch-card-meta">{answered ? `${business} · Tokie called for you` : business}</p>
+          </div>
+          {lines.length > 0 && <button type="button" className="ch-call-toggle" aria-expanded={open} onClick={() => setOpen(!open)}>{open ? 'Hide' : 'View call'}</button>}
+        </div>
+        {callFeedback}
+         {open && <CallLines lines={lines} quiet recipient={recipient} />}
+      </div>
+    )
+  }
+
+  if (!lines.length) {
+    return (
+      <div className="ch-call">
+        <div className="ch-call-row">
+          <span className="ch-phone" aria-hidden="true"><LineIcon name="phone" /></span>
+          <div className="ch-call-who">
+            <p className="ch-card-meta">Outgoing call</p>
+            <p className="ch-card-title">{business}</p>
+            {phoneNumber && <p className="ch-card-meta">{phoneNumber}</p>}
+          </div>
+        </div>
+        {callFeedback}
+         <p className="ch-call-label"><span className="ch-live" aria-hidden="true" />Tokie is calling</p>
+      </div>
+    )
+  }
+
   return (
-    <div className="ch-card ch-call">
-      <p className="ch-card-eyebrow">{state === 'calling' ? <><span className="ch-live" aria-hidden="true" /> Live call</> : 'Call finished'}</p>
-      <p className="ch-card-title">{business}</p>
-      {state==='done' && outcome && outcome!=='completed' && <p className="ch-card-meta">{{'no-answer':'No answer',busy:'Line busy',rejected:'Call rejected',canceled:'Call cancelled',failed:'Call failed'}[outcome]??outcome}</p>}
-      {lookupError && <p role="status">Couldn’t retrieve the call status. <button type="button" onClick={()=>{setLookupError(false);setRetry(x=>x+1)}}>Retry</button></p>}
-      {resultPending && !lookupError && <p role="status">Checking the call result…</p>}
-      {reservation && <div className="ch-card-meta" aria-label="Reservation result">
-        <p>{{inquiry:'Inquiry only',requested:'Request received',confirmed:'Reservation confirmed',changed:'Reservation updated',cancelled:'Reservation cancelled',declined:'Request declined',unknown:'Result unconfirmed'}[reservation.status]}</p>
-        {(reservation.checkIn||reservation.checkOut)&&<p>{formatStayDate(reservation.checkIn)} → {formatStayDate(reservation.checkOut)}</p>}
-        {reservation.durationText&&<p>{reservation.durationText}</p>}
-        {reservation.needsDateConfirmation&&<p>Checkout needs confirmation</p>}
-        {reservation.roomType&&<p>{reservation.roomType}</p>}
-        {reservation.guests&&<p>{reservation.guests} guests</p>}
-        {reservation.guestName&&<p>{reservation.guestName}</p>}
-        {reservation.reservationNumber&&<p>{reservation.reservationNumber}</p>}
-      </div>}
-      {lines.length > 0 ? (
-        <ol className="ch-call-lines" lang="ko">
-          {lines.map(({ id, role, text, final }) => (
-            <li key={id} className={final ? undefined : 'is-partial'}>
-              <span lang="en">{role === 'agent' ? 'Tokie' : recipient}</span>
-              {text}
-            </li>
-          ))}
-        </ol>
-      ) : (
-        <p className="ch-card-meta">{state === 'calling' ? 'Ringing…' : 'Nothing was said on this call.'}</p>
-      )}
+    <div className="ch-call">
+      <div className="ch-call-head">
+        <span className="ch-live" aria-hidden="true" />
+        <p className="ch-call-on">On call · {business}</p>
+        {/* Navy while Tokie speaks, teal while the business does. The clock ticks every second, so it stays out of the live region. */}
+        <span className={lines.at(-1)?.role === 'agent' ? 'ch-wave is-tokie' : 'ch-wave'} aria-hidden="true">{Array.from({ length: 10 }, (_, bar) => <i key={bar} />)}</span>
+        {seconds !== null && <span className="ch-call-time" aria-hidden="true">{formatDuration(seconds)}</span>}
+      </div>
+      {callFeedback}
+      <CallLines lines={lines} recipient={recipient} />
     </div>
   )
 }
 
-/** One line of the feed: a text bubble, the number card, or a call with its live transcript. */
-type Row = { key: string; mine: boolean } & ({ text: string } | { card: KoreanNumber } | { call: string; business: string })
+/** One line of the feed: a text bubble, number card, or call with its live transcript. */
+type Row = { key: string; mine: boolean } & ({ text: string } | { card: KoreanNumber } | { call: string; business: string; phoneNumber?: string })
 
 export function TokieChat({ hotelHarness = false, hotelScenario = 'booking', onHotelScenarioChange, hotelWorkflow = hotelHarness }: { hotelWorkflow?: boolean; hotelHarness?: boolean; hotelScenario?: string; onHotelScenarioChange?: (id:string)=>void }) {
   // One conversation per visit: the id only has to stay stable while this screen is mounted.
@@ -234,13 +332,15 @@ export function TokieChat({ hotelHarness = false, hotelScenario = 'booking', onH
       }
     },
     onError:()=>{if(pendingReport.current){pendingReport.current=null;setReportError(true)}},
-    tools: hotelWorkflow ? [hotelInquiryDef,hotelStatusDef] : [issueKoreanNumberDef, callBusinessDef],
+    tools: hotelWorkflow ? [hotelInquiryDef,hotelStatusDef] : [issueKoreanNumberDef, callBusinessDef, getCallResultDef],
   })
   const [draft, setDraft] = useState('')
   const [toast, setToast] = useState<{ id: number; text: string } | null>(null)
   // Calls whose result still has to be handed to Tokie, and those already handed over.
   const [endedCalls, setEndedCalls] = useState<string[]>([])
   const reportedCalls = useRef(new Set<string>())
+  // The business of the last call somebody answered; once there is one, the shortcuts turn to following up with it.
+  const [calledBusiness, setCalledBusiness] = useState<string>()
   const feed = useRef<HTMLDivElement>(null)
   const input = useRef<HTMLInputElement>(null)
   useEffect(()=>{
@@ -292,14 +392,17 @@ export function TokieChat({ hotelHarness = false, hotelScenario = 'booking', onH
     finally{setHotelBusy(false)}
   }
 
-  // Pick up the number typed on the landing page.
+  // Coming from the landing page's call box: open the conversation with what the visitor entered there.
   useEffect(() => {
-    const number = sessionStorage.getItem(CALL_NUMBER_STORAGE_KEY)
-    if (number) {
-      sessionStorage.removeItem(CALL_NUMBER_STORAGE_KEY)
-      setDraft(`Please call ${number} for me. `)
-    }
-  }, [])
+    const intent = readCallIntent()
+    if (!intent) return
+    // Sent on the next tick, so a mount that React tears down straight away (strict mode) never sends and cancels.
+    const timer = setTimeout(() => {
+      sessionStorage.removeItem(CALL_INTENT_STORAGE_KEY)
+      void sendMessage(openingMessage(intent))
+    }, 0)
+    return () => clearTimeout(timer)
+  }, [sendMessage])
 
   // What the feed shows. Reasoning, tool bookkeeping and the app's own call-ended notes stay hidden.
   const rows = messages.flatMap((message) =>
@@ -315,7 +418,7 @@ export function TokieChat({ hotelHarness = false, hotelScenario = 'booking', onH
       if (part.name === callBusinessDef.name) {
         const placed = part.output as CallPlaced | undefined
         const request = part.input as CallRequest | undefined
-        if (placed?.status === 'calling' && placed.call) return [{ key, mine: false, call: placed.call, business: request?.businessName ?? 'the business' }]
+        if (placed?.status === 'calling' && placed.call) return [{ key, mine: false, call: placed.call, business: request?.businessName ?? 'the business', phoneNumber: request?.phoneNumber }]
       }
       return []
     }),
@@ -358,6 +461,14 @@ export function TokieChat({ hotelHarness = false, hotelScenario = 'booking', onH
     input.current?.focus()
   }
 
+  const shortcuts = calledBusiness
+    ? [
+        // Starts the message, for the traveler to finish with their question.
+        { label: 'Ask them something', text: `Please ask ${calledBusiness}: ` },
+        { label: 'What exactly did they say?', text: 'What exactly did they say?' },
+      ]
+    : quickReplies.map((reply) => ({ label: reply, text: reply }))
+
   function send(event: SubmitEvent<HTMLFormElement>) {
     event.preventDefault()
     const text = draft.trim()
@@ -384,12 +495,7 @@ export function TokieChat({ hotelHarness = false, hotelScenario = 'booking', onH
         <div className="ch-row"><TokieAvatar /><p className="ch-bubble">{GREETING}</p></div>
         {rows.map((row) => {
           if ('call' in row) {
-            return (
-              <div key={row.key} className="ch-row ch-row--wide">
-                <TokieAvatar />
-                <CallLive reference={row.call} business={row.business} onDone={(reference) => setEndedCalls((current) => [...current, reference])} onActivity={scrollToEnd} />
-              </div>
-            )
+            return <CallLive key={row.key} reference={row.call} business={row.business} phoneNumber={row.phoneNumber} onDone={(reference, answered) => { setEndedCalls((current) => [...current, reference]); if (answered) setCalledBusiness(row.business) }} onActivity={scrollToEnd} />
           }
           return (
             <div key={row.key} className={row.mine ? 'ch-row ch-row--me' : 'card' in row ? 'ch-row ch-row--wide' : 'ch-row'}>
@@ -415,7 +521,7 @@ export function TokieChat({ hotelHarness = false, hotelScenario = 'booking', onH
 
       <footer className="ch-foot">
         <div className="ch-quick">
-          {quickReplies.map((reply) => <button key={reply} type="button" onClick={() => fillQuickReply(reply)}>{reply}</button>)}
+          {shortcuts.map(({ label, text }) => <button key={label} type="button" onClick={() => fillQuickReply(text)}>{label}</button>)}
         </div>
         <form className="ch-compose" onSubmit={send}>
           <label className="lp-sr-only" htmlFor="ch-message">Message Tokie</label>

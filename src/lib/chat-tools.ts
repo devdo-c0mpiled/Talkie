@@ -38,8 +38,12 @@ export type CallPlaced = z.infer<typeof callBusinessDef.outputSchema>
 
 export const getCallResultDef = toolDefinition({
   name: 'get_call_result',
-  description: 'Get what happened on a call placed with call_business: whether it is over, how it ended and, if someone answered, what was said.',
-  inputSchema: z.object({ call: z.string().meta({ description: 'The call reference returned by call_business' }) }),
+  description: 'Get what happened on a call placed with call_business: whether it is over, how it ended and, if someone answered, what was said. For an answered call it also prepares a page with the booking details and the call, which the app links to.',
+  inputSchema: z.object({
+    call: z.string().meta({ description: 'The call reference returned by call_business' }),
+    businessName: z.string().meta({ description: 'Name of the business that was called, as used in call_business' }),
+    language: z.string().meta({ description: 'BCP 47 tag of the language the traveler writes in, e.g. "en", "ja", "zh-Hans", "th". The page is written in it.' }),
+  }),
   outputSchema: z.object({
     state: z.enum(['calling', 'done', 'unknown']),
     /** How the call ended: completed (it connected), no-answer, busy, rejected, canceled or failed. */
@@ -48,13 +52,31 @@ export const getCallResultDef = toolDefinition({
     transcript: z.string().optional(),
     reservation: callResultSchema.optional(),
     conversationMode: z.enum(['business_call','hotel_roleplay']).optional(),
+    /** The page prepared for this call. The app shows a link to it under the reply. */
+    result: z
+      .object({
+        id: z.string(),
+        status: z.enum(['confirmed', 'pending', 'declined', 'none']),
+        business: z.string(),
+        headline: z.string(),
+        when: z.string(),
+      })
+      .optional(),
   }),
 })
 
 /** One thing said on a call, as shown live in the chat. `final` is false while the speaker is still mid-sentence. */
-export type CallLine = { id: string; role: 'agent' | 'business'; text: string; final: boolean }
+export type CallLine = { id: string; role: 'agent' | 'business'; text: string; final: boolean; /** When the line began, in ms since the epoch. */ startedAt?: number }
 
 /** Prefix of the hidden message the chat screen sends when a call has ended, followed by the call reference. */
 export const CALL_ENDED_MARKER = '[call-ended]'
-/** sessionStorage key for the number typed on the landing page. */
-export const CALL_NUMBER_STORAGE_KEY = 'tokie.call-number'
+/** What the visitor set up in the landing page call box, handed to the chat when they press Call. */
+export type CallIntent = {
+  number: string
+  /** Set when the number came from one of the sample businesses. */
+  businessName?: string
+  /** The kind of place ("clinic", "salon", …), set only when the visitor chose it themselves. */
+  placeType?: string
+}
+/** sessionStorage key for the landing page's CallIntent, stored as JSON. */
+export const CALL_INTENT_STORAGE_KEY = 'tokie.call-intent'

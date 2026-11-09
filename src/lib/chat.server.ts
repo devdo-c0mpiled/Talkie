@@ -4,11 +4,12 @@ import { env } from 'cloudflare:workers'
 import { chat, chatParamsFromRequest, toServerSentEventsResponse } from '@tanstack/ai'
 import { getOpenAiChat } from './ai.server'
 import { CALL_ENDED_MARKER, callBusinessDef, getCallResultDef } from './chat-tools'
-import { resolveConversationMode, callsConfigured, fromCallReference, getCallResult as lookUpCallResult, normalizeKoreanNumber, placeCall, toCallReference } from './clawops.server'
+import { resolveConversationMode, callsConfigured, fromCallReference, getCallReport, normalizeKoreanNumber, placeCall, toCallReference } from './clawops.server'
 
 import {hotelInquiryDef, hotelStatusDef} from './hotel-workflow-tools'
 import {readWorkflow, queryWorkflow, sandboxEnabled} from './hotel-workflow.server'
 import {HOTEL_WORKFLOW_PROMPT} from './hotel-workflow-prompt'
+import {prepareCallResult} from './call-result.server'
 
 const MODEL = 'gpt-6.1-terra'
 // The endpoint is public, so cap what a single request can cost.
@@ -51,9 +52,16 @@ const CALLS_PROMPT = `Calling a business
 const NO_CALLS_PROMPT = `Calling a business
 - Outbound calling is not configured in this environment. Say you cannot call from this chat right now and offer a message the traveler can send. Do not claim to answer incoming calls or to have contacted the business.`
 
-const getCallResult = getCallResultDef.server(async ({ call }) => {
+const getCallResult = getCallResultDef.server(async ({ call, businessName, language }) => {
   const callId = await fromCallReference(call)
-  return callId ? lookUpCallResult(callId) : { state: 'unknown' as const, outcome: 'unknown' }
+  if (!callId) return { state: 'unknown' as const, outcome: 'unknown' }
+  const report = await getCallReport(callId)
+  const { state, outcome, transcript, reservation, conversationMode } = report
+  // The page is a bonus: a failure to build it must not cost the traveler the report itself.
+  const result = await prepareCallResult(callId, report, businessName, language).catch(() => null)
+  if (!result) return { state, outcome, transcript, reservation, conversationMode }
+  const { id, status, business, headline, when } = result
+  return { state, outcome, transcript, reservation, conversationMode, result: { id, status, business, headline, when } }
 })
 
 // Runs only after the traveler has approved the call in the chat screen (needsApproval on the definition).

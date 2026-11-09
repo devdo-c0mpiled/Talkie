@@ -61,6 +61,8 @@ CLAWOPS_AGENT_ID=      # node --env-file=.dev.vars scripts/setup-clawops-agent.m
 - 한국 일반 번호(유선, 휴대폰, 070, 050x, 15xx~18xx)만 겁니다. 긴급·단축 번호, 060, 해외 번호는 거부합니다.
 - 통화 중에는 음성 에이전트의 실시간 전사 이벤트(`liveEvents`)를 읽어 채팅에 대화를 한국어 그대로 보여 주고, 통화가 끝나면 Tokie가 그 내용을 여행자 언어로 알려 줍니다. 에이전트에 `liveEvents`가 꺼져 있으면 ClawOps에서 녹음을 받아 OpenAI(`gpt-4o-transcribe`)로 전사합니다(이 경우 통화 녹음이 OpenAI로 전송됩니다). ClawOps 자체 전사는 통화당 1분쯤 걸려 쓰지 않습니다.
 - 브라우저에 넘기는 통화 참조값은 서명되어 있어 이 앱이 건 통화만 조회할 수 있습니다.
+- 통화가 연결됐다 끝나면 작은 모델(`gpt-6-luna`)이 대화 기록에서 예약 정보(상태, 일시, 내용, 예약자, 준비물, 업체 답변)를 뽑고 줄별 번역을 만들어 D1 `call_results`에 저장합니다. 채팅에는 그 결과 페이지(`/b/<id>`) 링크가 뜨고, 페이지는 예약 정보와 통화 녹음·대화 기록을 보여 줍니다. 로컬에서는 `npx wrangler d1 migrations apply talkie-db --local`로 `0003_call_results.sql`을 적용해야 합니다.
+- 결과 페이지와 녹음(`/api/b/<id>/recording`)은 **주소를 아는 사람이면 누구나 볼 수 있습니다.** id는 추측하기 어렵게 무작위로 만들고 검색 엔진 색인은 막아 두었지만, 예약자 이름과 통화 내용이 들어 있으므로 링크를 공유할 때 주의하세요.
 
 이메일 소유권 확인과 비밀번호 재설정은 아직 제공하지 않습니다. `ADMIN_EMAILS`에 지정된 이메일로 먼저 가입한 사람은 이메일 소유 확인 없이 관리자 권한을 얻습니다. Google 로그인을 사용하려면 Google Cloud 프로젝트의 웹 OAuth 클라이언트 ID와 비밀값을 `.dev.vars`의 `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`에 설정하고 승인된 리디렉션 URI에 `http://127.0.0.1:3000/api/auth/callback/google`을 추가합니다. 두 값이 모두 설정되면 Google 로그인 버튼이 표시됩니다. 기존 계정과 Google 계정의 연결은 비활성화되어 있습니다.
 

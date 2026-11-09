@@ -1,5 +1,5 @@
 /* Tokie traveler chat (`/chat`).
-   Source: Claude Design "Tokie voice booking agent" › P1 Chat: get a Korean number (390 × 844).
+   Source: Claude Design "Tokie voice booking agent" › P1 Chat: get a Korean number and P2 Tokie answers the call (390 × 844).
    The design plays a scripted conversation; here the same pieces render the live chat with the agent.
    The page root is `.lp.ch`, so it inherits the tokens, resets and shared pieces
    (`lp-tokie-ava`, `lp-ic`, the `lp-talking` / `lp-blink` keyframes) from landing.css; everything new is `ch-`. */
@@ -61,19 +61,70 @@
 @keyframes ch-roll { to { transform: translateY(var(--ch-roll-to)); } }
 .ch-card-title { font-size: 18px; line-height: 24px; font-weight: 700; letter-spacing: -0.01em; overflow-wrap: anywhere; }
 .ch-card-meta { color: var(--lp-slate); font-size: 13px; line-height: 18px; font-weight: 500; overflow-wrap: anywhere; }
-/* A call in progress: what is being said, line by line. */
-.ch-call { width: 320px; max-width: 100%; }
-.ch-call .ch-card-eyebrow { display: flex; align-items: center; gap: 6px; }
-.ch-call-lines { display: flex; flex-direction: column; gap: 10px; margin: 0; padding: 0; list-style: none; font-size: 15px; line-height: 22px; font-weight: 500; overflow-wrap: anywhere; }
-.ch-call-lines li { display: flex; flex-direction: column; }
-.ch-call-lines li.is-partial { color: var(--lp-slate); }
-.ch-call-lines span { color: var(--lp-slate); font-size: 12px; line-height: 16px; font-weight: 700; }
 .ch-card-actions { display: flex; flex-direction: column; gap: 8px; }
 .ch-card-actions button { display: inline-flex; align-items: center; justify-content: center; gap: 6px; height: 44px; border-radius: 12px; font-size: 14px; line-height: 20px; font-weight: 700; transition: transform 0.15s; }
 .ch-card-actions button:active, .ch-quick button:active { transform: scale(0.97); }
 .ch-card-actions .lp-ic, .ch-send .lp-ic { stroke-width: 2.2; }
 .ch-btn-primary { background: var(--lp-teal); color: #fff; }
 .ch-btn-soft { background: var(--lp-teal-tint); color: var(--lp-teal-deep); }
+
+/* ── Call card ───────────────────────────────────────────────── */
+/* Spans the feed without an avatar: ringing, then the live transcript, then folded once the call is over. */
+.ch-call { flex: none; padding: 14px 16px; border-radius: 20px; background: #fff; box-shadow: inset 0 0 0 1px var(--lp-border), var(--lp-card-shadow); animation: ch-in 0.5s cubic-bezier(0.34, 1.3, 0.64, 1) both; }
+.ch-call--end { padding: 12px 16px; background: var(--lp-surface); box-shadow: inset 0 0 0 1px var(--lp-border); transform-origin: top; animation: ch-fold 0.45s cubic-bezier(0.2, 0.9, 0.25, 1) both; }
+.ch-call-row { display: flex; align-items: center; gap: 14px; }
+.ch-call--end .ch-call-row { gap: 12px; }
+.ch-call-who { flex: 1; min-width: 0; }
+.ch-phone { position: relative; display: grid; flex: none; place-items: center; width: 44px; height: 44px; border-radius: 50%; background: var(--lp-teal); color: #fff; }
+.ch-phone::before, .ch-phone::after { content: ""; position: absolute; inset: 0; border: 2px solid var(--lp-teal); border-radius: 50%; animation: ch-ring 1.6s ease-out infinite; }
+.ch-phone::after { animation-delay: 0.8s; }
+.ch-phone--off { background: var(--lp-surface-strong); color: var(--lp-slate); }
+.ch-phone--off::before, .ch-phone--off::after { display: none; }
+.ch-phone .lp-ic { stroke-width: 2.2; }
+.ch-call-label { display: inline-flex; align-items: center; gap: 6px; margin-top: 10px; padding: 6px 12px; border-radius: 999px; background: var(--lp-teal-tint); color: var(--lp-teal-deep); font-size: 14px; line-height: 20px; font-weight: 700; }
+.ch-call-head { display: flex; align-items: center; gap: 10px; padding-bottom: 10px; border-bottom: 1px solid var(--lp-border); }
+.ch-call-on { flex: 1; min-width: 0; overflow: hidden; font-size: 14px; line-height: 20px; font-weight: 700; text-overflow: ellipsis; white-space: nowrap; }
+.ch-call-time { flex: none; font-size: 14px; line-height: 20px; font-weight: 700; font-variant-numeric: tabular-nums; }
+.ch-wave { display: flex; flex: none; align-items: center; gap: 3px; height: 22px; }
+.ch-wave i { width: 3px; height: 22px; border-radius: 2px; background: var(--lp-teal); animation: ch-wave 0.9s ease-in-out infinite; }
+.ch-wave.is-tokie i { background: var(--lp-navy); }
+.ch-wave i:nth-child(2) { animation-delay: 0.1s; }
+.ch-wave i:nth-child(3) { animation-delay: 0.25s; }
+.ch-wave i:nth-child(4) { animation-delay: 0.05s; }
+.ch-wave i:nth-child(5) { animation-delay: 0.3s; }
+.ch-wave i:nth-child(6) { animation-delay: 0.15s; }
+.ch-wave i:nth-child(7) { animation-delay: 0.35s; }
+.ch-wave i:nth-child(8) { animation-delay: 0.2s; }
+.ch-wave i:nth-child(9) { animation-delay: 0.4s; }
+.ch-wave i:nth-child(10) { animation-delay: 0.12s; }
+.ch-call-lines { display: flex; flex-direction: column; gap: 10px; margin: 0; padding: 10px 0 0; list-style: none; font-size: 15px; line-height: 22px; font-weight: 500; overflow-wrap: anywhere; }
+.ch-call--end .ch-call-lines { margin-top: 10px; border-top: 1px solid var(--lp-border); }
+.ch-call-lines li { display: flex; flex-direction: column; gap: 2px; animation: ch-in 0.45s cubic-bezier(0.34, 1.3, 0.64, 1) both; }
+.ch-call-lines li.is-partial { color: var(--lp-slate); }
+.ch-call-lines span { color: var(--lp-teal-deep); font-size: 12px; line-height: 16px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; }
+.ch-call-lines li.is-tokie span { color: var(--lp-ink-soft); }
+.ch-call-title { font-size: 16px; line-height: 22px; font-weight: 700; letter-spacing: -0.01em; }
+.ch-call-toggle { flex: none; min-height: 44px; padding: 0 4px; color: var(--lp-teal-deep); font-size: 14px; line-height: 20px; font-weight: 700; }
+@keyframes ch-ring { from { opacity: 0.5; transform: scale(1); } to { opacity: 0; transform: scale(1.9); } }
+@keyframes ch-wave { 0%, 100% { transform: scaleY(0.3); } 50% { transform: scaleY(1); } }
+@keyframes ch-fold { from { opacity: 0; transform: scaleY(1.6); } }
+
+/* ── Booking card ────────────────────────────────────────────── */
+/* Link to a finished call's page, drawn like a link preview in a text message. */
+.ch-result { display: flex; flex-direction: column; align-items: flex-start; gap: 2px; min-width: 0; }
+.ch-link { display: block; width: 270px; max-width: 100%; border-radius: 18px; background: #fff; box-shadow: inset 0 0 0 1px var(--lp-border); overflow: hidden; transition: transform 0.1s; }
+.ch-link:active { transform: scale(0.97); }
+.ch-link-art { display: grid; place-items: center; height: 150px; background: var(--lp-teal-tint); }
+.ch-link-art img { width: auto; height: 128px; }
+.ch-link-text { display: flex; flex-direction: column; align-items: flex-start; gap: 4px; padding: 10px 13px 11px; }
+.ch-link-title { font-size: 15px; line-height: 1.25; font-weight: 600; overflow-wrap: anywhere; }
+.ch-link-host { color: var(--ch-muted); font-size: 13px; line-height: 18px; }
+.ch-link-url { display: inline-flex; align-items: center; min-height: 44px; padding: 2px 6px; color: var(--lp-teal); font-size: 14px; font-weight: 600; text-decoration: underline; overflow-wrap: anywhere; }
+.ch-badge { display: inline-flex; align-items: center; align-self: flex-start; gap: 6px; height: 28px; padding: 0 10px; border-radius: 999px; background: var(--lp-amber-tint); color: var(--lp-amber); font-size: 12px; line-height: 16px; font-weight: 700; letter-spacing: 0.01em; }
+.ch-badge--ok { background: var(--lp-teal); color: #fff; animation: ch-badge 0.5s ease-out both; }
+.ch-badge .lp-ic { stroke-width: 3.2; stroke-dasharray: 24; animation: ch-draw 0.6s ease-out 0.15s both; }
+@keyframes ch-badge { from { background: var(--lp-amber-tint); color: var(--lp-amber); } }
+@keyframes ch-draw { from { stroke-dashoffset: 24; } }
 
 /* ── Composer ────────────────────────────────────────────────── */
 .ch-foot { display: flex; flex: none; flex-direction: column; gap: 10px; padding: 10px 16px max(24px, env(safe-area-inset-bottom)); border-top: 1px solid var(--lp-border); background: #fff; }
@@ -90,7 +141,7 @@
 @keyframes ch-toast { 0% { opacity: 0; transform: translate(-50%, 8px); } 12%, 85% { opacity: 1; transform: translate(-50%, 0); } 100% { opacity: 0; transform: translate(-50%, 0); } }
 
 @media (prefers-reduced-motion: reduce) {
-  .ch-row, .ch-status, .ch-live, .ch-typing i { animation: none; }
+  .ch-row, .ch-status, .ch-live, .ch-typing i, .ch-call, .ch-call--end, .ch-call-lines li, .ch-phone::before, .ch-phone::after, .ch-wave i, .ch-badge, .ch-badge--ok, .ch-badge .lp-ic { animation: none; }
   /* Digits sit on their final value without rolling. */
   .ch-digit-strip { transform: translateY(var(--ch-roll-to)); animation: none; }
   .ch-toast { transform: translate(-50%, 0); animation: none; }

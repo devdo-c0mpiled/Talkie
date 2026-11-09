@@ -1,0 +1,125 @@
+/* Booking page a finished call links to (`/b/<id>`).
+   Source: Claude Design "Tokie voice booking agent" › P4 Booking + call transcript (390 wide).
+   The page root is `.lp.bk`, so it inherits the tokens, resets and shared pieces from landing.css; everything new is `bk-`.
+   The design's sample content (map, photo upload, cancel flow) is left out: the page only shows what the call produced. */
+
+.lp.bk {
+  --bk-muted: #7e8c88;
+  --bk-amber-line: #d97706;
+
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  max-width: 480px;
+  min-height: 100vh;
+  min-height: 100dvh;
+  margin-inline: auto;
+  /* Side edges, visible once the screen is wider than the phone-sized column. */
+  box-shadow: 0 0 0 1px var(--lp-border);
+}
+
+.bk-mono { font-family: 'JetBrains Mono', ui-monospace, 'SF Mono', Menlo, monospace; font-weight: 400; }
+.bk-title { font-size: 28px; line-height: 34px; font-weight: 800; letter-spacing: -0.02em; text-wrap: balance; }
+.bk-sub { color: var(--lp-slate); font-size: 16px; line-height: 24px; font-weight: 500; text-wrap: pretty; }
+.bk-subh { font-size: 18px; line-height: 24px; font-weight: 700; letter-spacing: -0.01em; overflow-wrap: anywhere; }
+.bk-body { font-size: 15px; line-height: 22px; font-weight: 500; }
+.bk-label { font-size: 14px; line-height: 20px; font-weight: 700; }
+.bk-caption { color: var(--lp-slate); font-size: 13px; line-height: 18px; font-weight: 600; }
+
+/* ── Header ──────────────────────────────────────────────────── */
+.bk-head { display: flex; flex: none; align-items: center; justify-content: space-between; height: 52px; padding: 0 8px; border-bottom: 1px solid var(--lp-border); background: #fff; }
+.bk-icon-btn { display: grid; place-items: center; width: 44px; height: 44px; border-radius: 12px; transition: background-color 0.15s; }
+.bk-icon-btn:hover { background: var(--lp-surface-strong); }
+.bk-icon-btn .lp-ic { stroke-width: 2.2; }
+.bk-brand { display: flex; align-items: center; gap: 8px; font-size: 16px; font-weight: 800; letter-spacing: -0.02em; }
+.bk-brand .lp-tokie-ava { width: 28px; height: 28px; }
+.bk-id { padding-right: 8px; color: var(--lp-slate); font-size: 12px; }
+
+/* ── Hero ────────────────────────────────────────────────────── */
+.bk-main { display: flex; flex: 1; flex-direction: column; gap: 12px; padding: 20px 16px 8px; }
+.bk-hero { display: flex; flex-direction: column; align-items: center; gap: 10px; padding: 8px 8px 12px; text-align: center; }
+.bk-check circle { fill: var(--lp-teal); stroke: var(--lp-teal); stroke-width: 3; stroke-dasharray: 176; animation: bk-ring 0.6s ease-out 0.1s both, bk-fill 0.3s ease-out 0.65s both; }
+.bk-check path { fill: none; stroke: #fff; stroke-width: 4.5; stroke-linecap: round; stroke-linejoin: round; stroke-dasharray: 24; animation: bk-draw 0.6s ease-out 0.75s both; }
+@keyframes bk-ring { from { stroke-dashoffset: 176; } }
+@keyframes bk-fill { from { fill: transparent; } }
+@keyframes bk-draw { from { stroke-dashoffset: 24; } }
+.bk-rise { animation: bk-rise 0.5s cubic-bezier(0.34, 1.3, 0.64, 1) both; }
+.bk-sub.bk-rise { animation-delay: 80ms; }
+.bk-chip.bk-rise { animation-delay: 160ms; }
+@keyframes bk-rise { from { opacity: 0; transform: translateY(16px) scale(0.96); } }
+.bk-chip { display: inline-flex; align-items: center; gap: 6px; height: 40px; padding: 0 16px; border-radius: 999px; background: var(--lp-teal-tint); color: var(--lp-teal-deep); font-size: 14px; line-height: 14px; font-weight: 700; white-space: nowrap; }
+.bk-chip .lp-ic { stroke-width: 2.2; }
+
+/* ── Tabs ────────────────────────────────────────────────────── */
+.bk-seg { display: flex; gap: 4px; padding: 4px; border-radius: 12px; background: var(--lp-surface-strong); }
+.bk-seg button { flex: 1; height: 44px; padding: 0 8px; border-radius: 8px; color: var(--lp-slate); font-size: 14px; font-weight: 700; }
+.bk-seg button[aria-selected='true'], .bk-seg button[aria-checked='true'] { background: #fff; box-shadow: var(--lp-card-shadow); color: var(--lp-ink); }
+.bk-seg--small button { height: 40px; font-size: 13px; }
+.bk-panel { display: flex; flex-direction: column; gap: 12px; }
+
+/* ── Booking ─────────────────────────────────────────────────── */
+.bk-card { display: flex; flex-direction: column; gap: 10px; padding: 20px; border-radius: 24px; background: #fff; }
+.bk-details { padding: 8px 20px; }
+.bk-details dl { margin: 0; }
+.bk-kv { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; padding: 12px 0; border-bottom: 1px solid var(--lp-border); }
+.bk-kv:last-child { border-bottom: 0; }
+.bk-kv dt { flex: none; color: var(--lp-slate); font-size: 15px; font-weight: 500; }
+.bk-kv dd { margin: 0; font-size: 15px; font-weight: 700; text-align: right; overflow-wrap: anywhere; }
+.bk-kv dd.bk-mono { font-size: 14px; font-weight: 500; }
+.bk-from { display: inline-flex; align-items: center; min-height: 28px; padding-top: 6px; color: var(--lp-teal-deep); font-size: 12px; font-weight: 600; text-decoration: underline; text-underline-offset: 2px; }
+.bk-from:hover { color: var(--lp-ink); }
+.bk-place { gap: 14px; }
+.bk-inset { display: flex; flex-direction: column; gap: 6px; padding: 16px; border-radius: 16px; background: var(--lp-surface); animation: bk-open 0.3s cubic-bezier(0.22, 1, 0.36, 1) both; }
+@keyframes bk-open { from { opacity: 0; transform: translateY(-6px); } }
+.bk-address { font-size: 22px; line-height: 1.45; font-weight: 700; overflow-wrap: anywhere; }
+.bk-list ul { display: flex; flex-direction: column; gap: 8px; }
+.bk-list li { display: flex; align-items: center; gap: 10px; font-size: 15px; line-height: 22px; font-weight: 500; }
+.bk-list .lp-ic { color: var(--lp-teal); stroke-width: 2.4; }
+.bk-answer { align-items: flex-start; background: var(--lp-amber-tint); }
+.bk-answer .bk-label { color: var(--lp-amber); }
+.bk-answer .bk-from { padding-top: 0; }
+.bk-links { display: flex; justify-content: center; gap: 4px; padding: 4px 0; }
+.bk-links a { display: inline-flex; align-items: center; min-height: 44px; padding: 0 8px; color: var(--lp-slate); font-size: 14px; font-weight: 700; }
+.bk-links a:hover { color: var(--lp-ink); }
+
+/* ── Buttons ─────────────────────────────────────────────────── */
+.bk-btn { display: inline-flex; align-items: center; justify-content: center; gap: 8px; height: 56px; padding: 0 12px; border-radius: 16px; font-size: 17px; line-height: 17px; font-weight: 700; white-space: nowrap; transition: background-color 0.15s, transform 0.15s; }
+.bk-btn:active { transform: scale(0.97); }
+.bk-btn .lp-ic { stroke-width: 2.2; }
+.bk-btn--soft { background: var(--lp-surface-strong); color: var(--lp-ink); }
+.bk-btn--soft:hover { background: var(--lp-border); }
+.bk-place .bk-btn { height: 52px; border-radius: 14px; font-size: 15px; }
+.bk-btn--shine { position: relative; overflow: hidden; }
+.bk-btn--shine::after { content: ''; position: absolute; inset: 0; background: linear-gradient(100deg, transparent 30%, rgba(255, 255, 255, 0.35) 50%, transparent 70%); animation: bk-shine 2.8s cubic-bezier(0.22, 1, 0.36, 1) infinite; pointer-events: none; }
+@keyframes bk-shine { 0% { transform: translateX(-120%); } 25%, 100% { transform: translateX(120%); } }
+
+/* ── Call ────────────────────────────────────────────────────── */
+.bk-recording { gap: 14px; }
+.bk-recording-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.bk-player { display: flex; align-items: center; gap: 12px; }
+.bk-play { display: grid; flex: none; place-items: center; width: 44px; height: 44px; border-radius: 50%; background: var(--lp-teal); color: #fff; }
+.bk-play:active { transform: scale(0.97); }
+.bk-bar { flex: 1; height: 6px; border-radius: 999px; background: var(--lp-surface-strong); overflow: hidden; }
+.bk-bar span { display: block; height: 100%; border-radius: 999px; background: var(--lp-teal); }
+.bk-time { color: var(--lp-slate); font-size: 12px; white-space: nowrap; }
+.bk-lines { display: flex; flex-direction: column; gap: 14px; padding: 8px 4px; }
+/* The business on the left; Tokie, speaking for the traveler, on the right. */
+.bk-line { display: flex; flex-direction: column; align-items: flex-start; align-self: flex-start; gap: 4px; max-width: 300px; }
+.bk-line--tokie { align-items: flex-end; align-self: flex-end; }
+.bk-bubble { padding: 10px 14px; border-radius: 18px 18px 18px 6px; background: var(--lp-surface-strong); font-size: 15px; line-height: 1.45; overflow-wrap: anywhere; transition: box-shadow 0.3s; }
+.bk-line--tokie .bk-bubble { border-radius: 18px 18px 6px 18px; background: var(--lp-teal); color: #fff; }
+.bk-bubble.is-highlighted { box-shadow: 0 0 0 3px var(--lp-teal-100), 0 0 0 5px var(--lp-teal); }
+.bk-translation { margin-top: 4px; font-size: 13px; line-height: 1.4; opacity: 0.78; }
+
+/* ── Footer ──────────────────────────────────────────────────── */
+.bk-foot { position: sticky; bottom: 0; display: flex; flex: none; gap: 8px; padding: 12px 16px max(24px, env(safe-area-inset-bottom)); border-top: 1px solid var(--lp-border); background: #fff; }
+.bk-foot .bk-btn { flex: 1; }
+.bk-foot .bk-btn--shine { flex: 1.3; }
+
+.bk-missing { align-items: center; justify-content: center; gap: 12px; text-align: center; }
+.bk-missing .bk-btn { margin-top: 8px; padding: 0 24px; }
+
+@media (prefers-reduced-motion: reduce) {
+  .bk-check circle, .bk-check path, .bk-rise, .bk-inset, .bk-btn--shine::after { animation: none; }
+  .bk-btn, .bk-bubble { transition: none; }
+}

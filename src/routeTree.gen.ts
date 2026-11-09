@@ -19,8 +19,10 @@ import { Route as TestRouteImport } from './routes/test'
 import { Route as ApiChatRouteImport } from './routes/api.chat'
 import { Route as ApiHotelChatRouteImport } from './routes/api.hotel-chat'
 import { Route as ApiHotelWorkflowRouteImport } from './routes/api.hotel-workflow'
+import { Route as BIdRouteImport } from './routes/b.$id'
 import { Route as ApiAuthSplatRouteImport } from './routes/api.auth.$'
 import { Route as ApiCallsCallRouteImport } from './routes/api.calls.$call'
+import { Route as ApiBIdRecordingRouteImport } from './routes/api.b.$id.recording'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
@@ -72,6 +74,11 @@ const ApiHotelWorkflowRoute = ApiHotelWorkflowRouteImport.update({
   path: '/api/hotel-workflow',
   getParentRoute: () => rootRouteImport,
 } as any)
+const BIdRoute = BIdRouteImport.update({
+  id: '/b/$id',
+  path: '/b/$id',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiAuthSplatRoute = ApiAuthSplatRouteImport.update({
   id: '/api/auth/$',
   path: '/api/auth/$',
@@ -80,6 +87,11 @@ const ApiAuthSplatRoute = ApiAuthSplatRouteImport.update({
 const ApiCallsCallRoute = ApiCallsCallRouteImport.update({
   id: '/api/calls/$call',
   path: '/api/calls/$call',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiBIdRecordingRoute = ApiBIdRecordingRouteImport.update({
+  id: '/api/b/$id/recording',
+  path: '/api/b/$id/recording',
   getParentRoute: () => rootRouteImport,
 } as any)
 
@@ -94,8 +106,10 @@ export interface FileRoutesByFullPath {
   '/api/chat': typeof ApiChatRoute
   '/api/hotel-chat': typeof ApiHotelChatRoute
   '/api/hotel-workflow': typeof ApiHotelWorkflowRoute
+  '/b/$id': typeof BIdRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
   '/api/calls/$call': typeof ApiCallsCallRoute
+  '/api/b/$id/recording': typeof ApiBIdRecordingRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -108,8 +122,10 @@ export interface FileRoutesByTo {
   '/api/chat': typeof ApiChatRoute
   '/api/hotel-chat': typeof ApiHotelChatRoute
   '/api/hotel-workflow': typeof ApiHotelWorkflowRoute
+  '/b/$id': typeof BIdRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
   '/api/calls/$call': typeof ApiCallsCallRoute
+  '/api/b/$id/recording': typeof ApiBIdRecordingRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -123,8 +139,10 @@ export interface FileRoutesById {
   '/api/chat': typeof ApiChatRoute
   '/api/hotel-chat': typeof ApiHotelChatRoute
   '/api/hotel-workflow': typeof ApiHotelWorkflowRoute
+  '/b/$id': typeof BIdRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
   '/api/calls/$call': typeof ApiCallsCallRoute
+  '/api/b/$id/recording': typeof ApiBIdRecordingRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -139,8 +157,10 @@ export interface FileRouteTypes {
     | '/api/chat'
     | '/api/hotel-chat'
     | '/api/hotel-workflow'
+    | '/b/$id'
     | '/api/auth/$'
     | '/api/calls/$call'
+    | '/api/b/$id/recording'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -153,8 +173,10 @@ export interface FileRouteTypes {
     | '/api/chat'
     | '/api/hotel-chat'
     | '/api/hotel-workflow'
+    | '/b/$id'
     | '/api/auth/$'
     | '/api/calls/$call'
+    | '/api/b/$id/recording'
   id:
     | '__root__'
     | '/'
@@ -167,8 +189,10 @@ export interface FileRouteTypes {
     | '/api/chat'
     | '/api/hotel-chat'
     | '/api/hotel-workflow'
+    | '/b/$id'
     | '/api/auth/$'
     | '/api/calls/$call'
+    | '/api/b/$id/recording'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -182,8 +206,10 @@ export interface RootRouteChildren {
   ApiChatRoute: typeof ApiChatRoute
   ApiHotelChatRoute: typeof ApiHotelChatRoute
   ApiHotelWorkflowRoute: typeof ApiHotelWorkflowRoute
+  BIdRoute: typeof BIdRoute
   ApiAuthSplatRoute: typeof ApiAuthSplatRoute
   ApiCallsCallRoute: typeof ApiCallsCallRoute
+  ApiBIdRecordingRoute: typeof ApiBIdRecordingRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -258,6 +284,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiHotelWorkflowRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/b/$id': {
+      id: '/b/$id'
+      path: '/b/$id'
+      fullPath: '/b/$id'
+      preLoaderRoute: typeof BIdRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/auth/$': {
       id: '/api/auth/$'
       path: '/api/auth/$'
@@ -270,6 +303,13 @@ declare module '@tanstack/react-router' {
       path: '/api/calls/$call'
       fullPath: '/api/calls/$call'
       preLoaderRoute: typeof ApiCallsCallRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/b/$id/recording': {
+      id: '/api/b/$id/recording'
+      path: '/api/b/$id/recording'
+      fullPath: '/api/b/$id/recording'
+      preLoaderRoute: typeof ApiBIdRecordingRouteImport
       parentRoute: typeof rootRouteImport
     }
   }
@@ -286,8 +326,10 @@ const rootRouteChildren: RootRouteChildren = {
   ApiChatRoute: ApiChatRoute,
   ApiHotelChatRoute: ApiHotelChatRoute,
   ApiHotelWorkflowRoute: ApiHotelWorkflowRoute,
+  BIdRoute: BIdRoute,
   ApiAuthSplatRoute: ApiAuthSplatRoute,
   ApiCallsCallRoute: ApiCallsCallRoute,
+  ApiBIdRecordingRoute: ApiBIdRecordingRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
