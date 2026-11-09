@@ -16,6 +16,28 @@ npm run dev -- --host 127.0.0.1 --port 3000
 
 `.dev.vars`는 비밀값이므로 Git에 추가하지 마세요. 로컬 URL을 바꾸면 `BETTER_AUTH_URL`도 실제 접속 주소와 일치시켜야 합니다.
 
+## 팀 개발용 TanStack 패키지
+
+Start, Router, Form 외에 AI, Query, DB, Table, Virtual, Store, Pacer, Hotkeys, Charts, Markdown, Highlight와 각종 개발 도구를 설치했습니다. 설치된 패키지와 버전은 `package.json`에서 확인할 수 있습니다. DB, Pacer, Hotkeys 등 일부는 정식 안정판 전 버전이므로 사용 전에 해당 버전의 API를 확인하세요.
+
+TanStack DB는 D1을 대체하지 않습니다. D1은 서버에서 접근하고, 클라이언트 컬렉션에는 Query와 API를 통해 데이터를 연결하세요. TanStack DB를 SSR에 사용할 때는 사용자 데이터가 섞이지 않도록 요청별 인스턴스를 생성해야 합니다.
+
+`@tanstack/ai-cloudflare`는 현재 Workers 타입과 함께 설치할 수 있는 1.1.0으로 고정했습니다.
+
+## AI 제공자 설정
+
+`src/lib/ai.server.ts`에서 OpenAI와 Gemini 채팅, ElevenLabs 음성 생성·전사, Cloudflare Workers AI 채팅용 어댑터를 만들 수 있습니다. 이 파일은 서버에서만 가져오세요. 외부 API를 호출하는 공개 엔드포인트는 제공하지 않습니다.
+
+로컬에서 필요한 제공자만 `.dev.vars`에 설정하세요. Google AI Studio의 `GEMINI_API_KEY`는 Google 로그인에 사용하는 OAuth 클라이언트 정보와 별개입니다.
+
+```dotenv
+OPENAI_API_KEY=
+GEMINI_API_KEY=
+ELEVENLABS_API_KEY=
+```
+
+운영 환경에서는 같은 이름의 Cloudflare Worker secrets를 사용합니다. Workers AI는 `wrangler.jsonc`의 `AI` 바인딩을 사용하며 별도 API 키가 필요하지 않습니다. 제공자 호출에는 각 서비스의 사용량 제한과 요금이 적용될 수 있습니다. 실제 서비스를 호출하는 기능을 추가할 때는 인증, 요청 제한과 모델 선택 정책을 함께 적용하세요.
+
 - `/`: 서비스 소개
 - `/login`: 이메일과 비밀번호 또는 설정된 Google 계정으로 가입 또는 로그인
 - `/admin`: 관리자 화면. 안전한 관리자 인증을 완성할 때까지 접근이 차단되며 통화 및 관리자 기능은 준비 중입니다.
@@ -28,9 +50,12 @@ npm run dev -- --host 127.0.0.1 --port 3000
 npm run typecheck
 npm run build
 npm run deploy:check
+npm run test:ai
 # 로컬 서버를 실행한 상태에서 별도 터미널에서 실행합니다.
 npm run test:auth
 ```
+
+AI 검사는 로컬 Worker와 합성 응답을 사용합니다. 외부 제공자에 요청하지 않습니다.
 
 Google 로그인 시작 검사는 로컬 서버에 합성 값 `GOOGLE_CLIENT_ID=synthetic-client-id`, `GOOGLE_CLIENT_SECRET=synthetic-client-secret`을 설정한 뒤 `npm run test:google`로 실행합니다. Google에 접속하거나 실제 계정을 사용하지 않습니다. CI에서도 이 합성 설정을 사용합니다.
 
