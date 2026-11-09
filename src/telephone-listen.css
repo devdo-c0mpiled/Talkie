@@ -1,0 +1,6 @@
+.telephone-listen { max-width: 48rem; margin: 2rem auto; padding: 0 1.25rem; line-height: 1.5; }
+.telephone-listen section { margin: 2rem 0; }
+.telephone-listen label { display: block; margin-bottom: .4rem; }
+.telephone-listen select, .telephone-listen input { display: block; width: 100%; max-width: 36rem; padding: .6rem; margin-bottom: .75rem; }
+.telephone-listen button { padding: .55rem .9rem; cursor: pointer; }
+.telephone-listen li { margin: .6rem 0; }

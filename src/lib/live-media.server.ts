@@ -12,6 +12,8 @@ type BridgeOptions = {
   voice?: string
   history?: { role: 'user' | 'assistant'; content: string }[]
   bufferedEvents?: string[]
+  onAudio?: (track: 'phone' | 'agent', payload: string) => void
+  onAudioEnd?: () => void
   onEvent?: (event: LiveEvent, send: (event: LiveEvent) => boolean) => void | Promise<void>
   onEnd?: (reason: EndReason, result: { transcriptComplete: boolean }) => void | Promise<void>
   fetcher?: typeof fetch
@@ -66,6 +68,7 @@ export function startLiveMediaBridge(options: BridgeOptions): () => void {
   function finish(reason: EndReason) {
     if (ended) return
     ended = true
+    try { options.onAudioEnd?.() } catch { /* Listening must not affect the call. */ }
     endReason = reason
     clearTimeout(timer)
     pending.length = 0
@@ -122,6 +125,7 @@ export function startLiveMediaBridge(options: BridgeOptions): () => void {
         !/^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/.test(media.payload)) {
       return finish('invalid_media')
     }
+    try { options.onAudio?.('phone', media.payload) } catch { /* Best effort. */ }
     const encoded = JSON.stringify({ type: 'session.input_audio.append', audio: media.payload })
     if (ready) {
       try {
@@ -200,6 +204,7 @@ export function startLiveMediaBridge(options: BridgeOptions): () => void {
           } catch {
             return finish('phone_closed')
           }
+          try { options.onAudio?.('agent', message.delta) } catch { /* Best effort. */ }
         }
         dispatchEvent(message)
       })
@@ -207,7 +212,7 @@ export function startLiveMediaBridge(options: BridgeOptions): () => void {
         type: 'session.start',
         session: {
           model: 'gpt-live-1',
-          instructions: options.instructions,
+          instructions: `${options.instructions}\n이미 받은 답변은 반복해서 확인하지 마세요. 예약 등 진행에 꼭 필요한 정보만 한 번 확인하고, 불명확할 때만 짧게 추가 질문하세요. 상대방의 답변을 충분히 기다리고 통화를 조기에 종료하지 마세요. 통화를 마치기 전에는 "통화 종료하겠습니다. 감사합니다."라고 끝까지 말하세요.`,
           ...(options.history?.length ? { input: options.history.map(item => ({
             type: 'message', role: item.role,
             content: [{ type: item.role === 'user' ? 'input_text' : 'output_text', text: item.content }],

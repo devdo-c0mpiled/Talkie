@@ -4,6 +4,7 @@ import { authorizeClawOpsGather, authorizeClawOpsWebhook, consumeClawOpsStreamTo
 import { bindCall, createInboundCall, markBridgeFailed, markBridgeFinished, markBridgeStarted, readPriorInboundTranscript, writeTranscript } from './call-store.server'
 import { getCustomerByNumber, getCustomerByPersonalPhone } from './customers.server'
 import { getInboundAgentSettings } from './agent-settings.server'
+import { createTelephoneListenPublisher } from './telephone-listen-object.server'
 
 function configuration() {
   const webhookUrl = env.CLAWOPS_WEBHOOK_URL?.trim()
@@ -99,6 +100,7 @@ export function handleClawOpsStream(request: Request) {
         !record(params) || params.callId !== start.callId || typeof params.token !== 'string' ||
         !record(format) || format.encoding !== 'audio/x-mulaw' || format.sampleRate !== 8000 || format.channels !== 1) return close()
     let started = false
+    let listen: ReturnType<typeof createTelephoneListenPublisher> | undefined
     try {
       let context: { intent: string; to: string } | undefined
       if ('intent' in params || 'to' in params) {
@@ -135,6 +137,7 @@ export function handleClawOpsStream(request: Request) {
       let sendLive: (event: Record<string, unknown>) => boolean = () => false
       const delegation = createLiveDelegation({ send: event => { sendLive(event) }, history, instructions: customerInstructions })
       let writes = Promise.resolve()
+      listen = createTelephoneListenPublisher((env as typeof env & { TELEPHONE_LISTEN?: DurableObjectNamespace }).TELEPHONE_LISTEN, start.callId)
       startLiveMediaBridge({
         phone,
         apiKey: config!.apiKey,
@@ -142,6 +145,8 @@ export function handleClawOpsStream(request: Request) {
         voice,
         history,
         bufferedEvents: buffered,
+        onAudio: (track, payload) => listen?.audio(track, payload),
+        onAudioEnd: () => listen?.end(),
         onEvent: (event, send) => {
           sendLive = send
           void delegation.handle(event)
@@ -159,6 +164,7 @@ export function handleClawOpsStream(request: Request) {
         },
       })
     } catch {
+      listen?.end()
       if (started) await markBridgeFailed(env.DB, start.callId).catch(() => {})
       close()
     }

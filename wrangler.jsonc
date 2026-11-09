@@ -1,7 +1,7 @@
 {
   "$schema": "node_modules/wrangler/config-schema.json",
   "name": "talkie",
-  "main": "@tanstack/react-start/server-entry",
+  "main": "src/worker.ts",
   "compatibility_date": "2026-11-08",
   "compatibility_flags": [
     "nodejs_compat"
@@ -11,6 +11,15 @@
   "ai": {
     "binding": "AI"
   },
+  "durable_objects": {
+    "bindings": [
+      { "name": "SFU_LIVE", "class_name": "SfuLiveSession" },
+      { "name": "TELEPHONE_LISTEN", "class_name": "TelephoneListen" }
+    ]
+  },
+  "migrations": [
+    { "tag": "v1", "new_sqlite_classes": ["SfuLiveSession", "TelephoneListen"] }
+  ],
   "d1_databases": [
     {
       "binding": "DB",

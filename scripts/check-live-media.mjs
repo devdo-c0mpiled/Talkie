@@ -37,6 +37,11 @@ assert.equal(request.url, 'https://api.openai.com/v1/live/sessions')
 assert.equal(request.init.headers.Authorization, 'Bearer fake-key')
 assert.equal(request.init.redirect, 'manual')
 assert.equal(live.sent[0].type, 'session.start')
+assert.match(live.sent[0].session.instructions, /Help the caller/)
+assert.match(live.sent[0].session.instructions, /통화 종료하겠습니다\. 감사합니다\./, 'the phone session includes the closing announcement')
+assert.match(live.sent[0].session.instructions, /기다리/, 'the phone session waits for the other person')
+assert.match(live.sent[0].session.instructions, /반복해서 확인하지/, 'the phone session avoids repeating answered questions')
+assert.match(live.sent[0].session.instructions, /불명확/, 'the phone session asks follow-up questions only when needed')
 assert.deepEqual(live.sent[0].session.audio.format, { type: 'audio/pcmu', rate: 8000 })
 assert.deepEqual(live.sent[0].session.input, [
   { type: 'message', role: 'user', content: [{ type: 'input_text', text: 'Prior request' }] },

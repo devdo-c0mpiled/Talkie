@@ -1,0 +1,47 @@
+import assert from 'node:assert/strict'
+import { readFile } from 'node:fs/promises'
+import { build } from 'esbuild'
+import { Miniflare } from 'miniflare'
+
+const bundle = await build({ stdin: { contents: `import { handleRealtimeKit } from './src/lib/realtimekit.server'; globalThis.fetch = async (url, init) => { const body = JSON.parse(init.body); const participant = url.endsWith('/participants'); return Response.json({ success: true, data: participant ? { id: '11111111-1111-4111-8111-111111111111', token: 'synthetic-token', custom_participant_id: body.custom_participant_id, preset_name: body.preset_name, expires_on: body.preset_name === 'bad-expiry' ? '2099-01-01T00:00:00Z' : body.token.expires_on } : { id: '22222222-2222-4222-8222-222222222222' } }) }; export default { fetch(request, bindings) { Object.assign(globalThis.__testEnv ??= {}, bindings, { BETTER_AUTH_URL: 'https://example.test', REALTIMEKIT_ACCOUNT_ID: 'synthetic-account', REALTIMEKIT_APP_ID: 'synthetic-app', REALTIMEKIT_API_TOKEN: 'synthetic-secret', REALTIMEKIT_VOICE_PRESET: request.headers.get('x-test-preset') || 'voice' }); return handleRealtimeKit(request) } }`, resolveDir: process.cwd(), loader: 'ts' }, bundle: true, write: false, platform: 'browser', format: 'esm', plugins: [{ name: 'test-auth', setup(build) {
+  build.onResolve({ filter: /^cloudflare:workers$/ }, () => ({ path: 'env', namespace: 'test' }))
+  build.onResolve({ filter: /^\.\/auth\.server$/ }, () => ({ path: 'auth', namespace: 'test' }))
+  build.onLoad({ filter: /.*/, namespace: 'test' }, ({ path }) => ({ contents: path === 'env' ? `export const env = globalThis.__testEnv = {}` : `export function getAuth() { return { api: { getSession: async ({ headers }) => headers.get('x-test-user') ? { user: { id: headers.get('x-test-user') } } : null } } }`, loader: 'js' }))
+} }] })
+const worker = new Miniflare({ workers: [{ config: { name: 'realtimekit-check', compatibilityDate: '2026-11-08', env: { DB: { type: 'd1', id: 'synthetic-db' } }, manifest: { mainModule: 'worker.mjs', modules: { 'worker.mjs': { type: 'esm', contents: bundle.outputFiles[0].text } } } } }] })
+try {
+  const request = (user, body, origin = 'https://example.test', preset = 'voice') => worker.dispatchFetch('https://example.test/api/realtimekit', { method: 'POST', headers: { ...(user ? { 'x-test-user': user } : {}), origin, 'x-test-preset': preset, 'content-type': 'application/json' }, body: JSON.stringify(body) })
+  assert.equal((await request(null, { action: 'create' })).status, 401)
+  assert.equal((await worker.dispatchFetch('https://example.test/api/realtimekit', { method: 'POST', headers: { 'x-test-user': 'caller', origin: 'https://example.test', 'content-type': 'text/plain' }, body: JSON.stringify({ action: 'create' }) })).status, 400)
+  assert.equal((await request('caller', { action: 'create', padding: 'x'.repeat(2048) })).status, 400)
+  const db = await worker.getD1Database('DB')
+  for (const file of ['migrations/0001_auth.sql', 'migrations/0011_realtimekit.sql']) for (const statement of (await readFile(file, 'utf8')).split(';').map((s) => s.trim()).filter(Boolean)) await db.prepare(statement).run()
+  for (const id of ['caller', 'other', 'third']) await db.prepare('INSERT INTO "user" (id, name, email, createdAt, updatedAt) VALUES (?, ?, ?, 1, 1)').bind(id, id, `${id}@example.test`).run()
+  assert.equal((await request('caller', { action: 'create' }, 'https://attacker.test')).status, 403)
+  const created = await request('caller', { action: 'create', userId: 'other' })
+  assert.equal(created.status, 200)
+  const { id, secret } = await created.json()
+  assert.match(secret, /^[a-f0-9]{64}$/)
+  assert.equal(created.headers.get('cache-control'), 'private, no-store')
+  const row = await db.prepare('SELECT guest_hash FROM realtimekit_sessions WHERE id = ?').bind(id).first()
+  assert.notEqual(row.guest_hash, secret)
+  assert.equal(row.guest_hash, (await import('node:crypto')).createHash('sha256').update(secret).digest('hex'))
+  assert.equal((await request('other', { action: 'token', id })).status, 404)
+  assert.equal((await request(null, { action: 'guest', id, secret: 'f'.repeat(64) })).status, 404)
+  assert.equal((await request('caller', { action: 'token', id })).status, 200)
+  assert.equal((await request('caller', { action: 'token', id })).status, 404)
+  const attempts = await Promise.all([request(null, { action: 'guest', id, secret }), request(null, { action: 'guest', id, secret })])
+  assert.deepEqual(attempts.map((response) => response.status).sort(), [200, 404])
+  assert.equal((await attempts.find((response) => response.status === 200).json()).token, 'synthetic-token')
+  assert.equal((await request(null, { action: 'guest', id, secret })).status, 404)
+  assert.equal((await db.prepare('SELECT guest_hash FROM realtimekit_sessions WHERE id = ?').bind(id).first()).guest_hash, null)
+  assert.equal((await request('caller', { action: 'create' })).status, 429)
+  const second = await (await request('other', { action: 'create' })).json()
+  assert.equal((await request(null, { action: 'guest', id: second.id, secret })).status, 404)
+  await db.prepare('UPDATE realtimekit_sessions SET expires_at = 0 WHERE id = ?').bind(second.id).run()
+  assert.equal((await request(null, { action: 'guest', id: second.id, secret: second.secret })).status, 404)
+  const third = await (await request('third', { action: 'create' })).json()
+  assert.equal((await request(null, { action: 'guest', id: third.id, secret: third.secret }, 'https://example.test', 'bad-expiry')).status, 502)
+  assert.equal((await request(null, { action: 'guest', id: third.id, secret: third.secret })).status, 404)
+  console.log('RealtimeKit authentication, guest hash, session isolation, expiry and one-time race checks passed')
+} finally { await worker.dispose() }

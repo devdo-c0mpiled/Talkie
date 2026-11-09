@@ -71,6 +71,7 @@ try {
   assert.match(matchedSession.instructions, /ko-KR/, 'matched caller uses the customer language')
   assert.match(matchedSession.instructions, /Offer the first customer a callback\./, 'matched caller uses the customer response rules')
   assert.match(matchedSession.instructions, /Never claim to have completed an action/, 'customer rules preserve the default safety instruction')
+  assert.match(matchedSession.instructions, /통화 종료하겠습니다\. 감사합니다\./, 'inbound calls include the closing announcement')
   assert.equal(matchedSession.audio.output.voice, 'nuri', 'matched caller uses the customer voice')
   assert.ok(events.some(event => event.type === 'session.input_audio.append' && event.audio === 'AQID'))
   const inboundConversation = await db.prepare('SELECT c.customer_id, c.caller_number FROM inbound_conversations c JOIN inbound_conversation_calls cc ON cc.conversation_id = c.id WHERE cc.call_id = ?').bind(fields.CallId).first()
@@ -215,7 +216,9 @@ try {
   outboundSocket.send(JSON.stringify({ event: 'media', media: { payload: 'AQID' } }))
   assert.deepEqual(await outboundMedia, { event: 'media', media: { payload: 'AQID' } })
   const outboundEvents = await (await worker.dispatchFetch(`${origin}/test/events`)).json()
-  assert.equal(outboundEvents.filter(event => event.type === 'session.start').at(-1).session.instructions, 'Synthetic task')
+  const outboundInstructions = outboundEvents.filter(event => event.type === 'session.start').at(-1).session.instructions
+  assert.match(outboundInstructions, /^Synthetic task/)
+  assert.match(outboundInstructions, /통화 종료하겠습니다\. 감사합니다\./, 'outbound calls include the closing announcement')
   outboundSocket.send(JSON.stringify({ event: 'stop' }))
   let fragments = []
   for (let i = 0; i < 30; i++) {

@@ -13,12 +13,15 @@ import { Route as IndexRouteImport } from './routes/index'
 import { Route as AccountRouteImport } from './routes/account'
 import { Route as AdminRouteImport } from './routes/admin'
 import { Route as ChatRouteImport } from './routes/chat'
+import { Route as ListenRouteImport } from './routes/listen'
 import { Route as LoginRouteImport } from './routes/login'
 import { Route as SignupRouteImport } from './routes/signup'
 import { Route as ApiAgentSettingsRouteImport } from './routes/api.agent-settings'
 import { Route as ApiChatRouteImport } from './routes/api.chat'
 import { Route as ApiIncomingRouteImport } from './routes/api.incoming'
 import { Route as ApiPersonalPhoneRouteImport } from './routes/api.personal-phone'
+import { Route as ApiRealtimekitRouteImport } from './routes/api.realtimekit'
+import { Route as ApiTelephoneListenRouteImport } from './routes/api.telephone-listen'
 import { Route as ApiAdminCallsRouteImport } from './routes/api.admin.calls'
 import { Route as ApiAuthSplatRouteImport } from './routes/api.auth.$'
 import { Route as ApiCallsCallRouteImport } from './routes/api.calls.$call'
@@ -43,6 +46,11 @@ const AdminRoute = AdminRouteImport.update({
 const ChatRoute = ChatRouteImport.update({
   id: '/chat',
   path: '/chat',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ListenRoute = ListenRouteImport.update({
+  id: '/listen',
+  path: '/listen',
   getParentRoute: () => rootRouteImport,
 } as any)
 const LoginRoute = LoginRouteImport.update({
@@ -73,6 +81,16 @@ const ApiIncomingRoute = ApiIncomingRouteImport.update({
 const ApiPersonalPhoneRoute = ApiPersonalPhoneRouteImport.update({
   id: '/api/personal-phone',
   path: '/api/personal-phone',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiRealtimekitRoute = ApiRealtimekitRouteImport.update({
+  id: '/api/realtimekit',
+  path: '/api/realtimekit',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiTelephoneListenRoute = ApiTelephoneListenRouteImport.update({
+  id: '/api/telephone-listen',
+  path: '/api/telephone-listen',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiAdminCallsRoute = ApiAdminCallsRouteImport.update({
@@ -106,12 +124,15 @@ export interface FileRoutesByFullPath {
   '/account': typeof AccountRoute
   '/admin': typeof AdminRoute
   '/chat': typeof ChatRoute
+  '/listen': typeof ListenRoute
   '/login': typeof LoginRoute
   '/signup': typeof SignupRoute
   '/api/agent-settings': typeof ApiAgentSettingsRoute
   '/api/chat': typeof ApiChatRoute
   '/api/incoming': typeof ApiIncomingRoute
   '/api/personal-phone': typeof ApiPersonalPhoneRoute
+  '/api/realtimekit': typeof ApiRealtimekitRoute
+  '/api/telephone-listen': typeof ApiTelephoneListenRoute
   '/api/admin/calls': typeof ApiAdminCallsRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
   '/api/calls/$call': typeof ApiCallsCallRoute
@@ -123,12 +144,15 @@ export interface FileRoutesByTo {
   '/account': typeof AccountRoute
   '/admin': typeof AdminRoute
   '/chat': typeof ChatRoute
+  '/listen': typeof ListenRoute
   '/login': typeof LoginRoute
   '/signup': typeof SignupRoute
   '/api/agent-settings': typeof ApiAgentSettingsRoute
   '/api/chat': typeof ApiChatRoute
   '/api/incoming': typeof ApiIncomingRoute
   '/api/personal-phone': typeof ApiPersonalPhoneRoute
+  '/api/realtimekit': typeof ApiRealtimekitRoute
+  '/api/telephone-listen': typeof ApiTelephoneListenRoute
   '/api/admin/calls': typeof ApiAdminCallsRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
   '/api/calls/$call': typeof ApiCallsCallRoute
@@ -141,12 +165,15 @@ export interface FileRoutesById {
   '/account': typeof AccountRoute
   '/admin': typeof AdminRoute
   '/chat': typeof ChatRoute
+  '/listen': typeof ListenRoute
   '/login': typeof LoginRoute
   '/signup': typeof SignupRoute
   '/api/agent-settings': typeof ApiAgentSettingsRoute
   '/api/chat': typeof ApiChatRoute
   '/api/incoming': typeof ApiIncomingRoute
   '/api/personal-phone': typeof ApiPersonalPhoneRoute
+  '/api/realtimekit': typeof ApiRealtimekitRoute
+  '/api/telephone-listen': typeof ApiTelephoneListenRoute
   '/api/admin/calls': typeof ApiAdminCallsRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
   '/api/calls/$call': typeof ApiCallsCallRoute
@@ -160,12 +187,15 @@ export interface FileRouteTypes {
     | '/account'
     | '/admin'
     | '/chat'
+    | '/listen'
     | '/login'
     | '/signup'
     | '/api/agent-settings'
     | '/api/chat'
     | '/api/incoming'
     | '/api/personal-phone'
+    | '/api/realtimekit'
+    | '/api/telephone-listen'
     | '/api/admin/calls'
     | '/api/auth/$'
     | '/api/calls/$call'
@@ -177,12 +207,15 @@ export interface FileRouteTypes {
     | '/account'
     | '/admin'
     | '/chat'
+    | '/listen'
     | '/login'
     | '/signup'
     | '/api/agent-settings'
     | '/api/chat'
     | '/api/incoming'
     | '/api/personal-phone'
+    | '/api/realtimekit'
+    | '/api/telephone-listen'
     | '/api/admin/calls'
     | '/api/auth/$'
     | '/api/calls/$call'
@@ -194,12 +227,15 @@ export interface FileRouteTypes {
     | '/account'
     | '/admin'
     | '/chat'
+    | '/listen'
     | '/login'
     | '/signup'
     | '/api/agent-settings'
     | '/api/chat'
     | '/api/incoming'
     | '/api/personal-phone'
+    | '/api/realtimekit'
+    | '/api/telephone-listen'
     | '/api/admin/calls'
     | '/api/auth/$'
     | '/api/calls/$call'
@@ -212,12 +248,15 @@ export interface RootRouteChildren {
   AccountRoute: typeof AccountRoute
   AdminRoute: typeof AdminRoute
   ChatRoute: typeof ChatRoute
+  ListenRoute: typeof ListenRoute
   LoginRoute: typeof LoginRoute
   SignupRoute: typeof SignupRoute
   ApiAgentSettingsRoute: typeof ApiAgentSettingsRoute
   ApiChatRoute: typeof ApiChatRoute
   ApiIncomingRoute: typeof ApiIncomingRoute
   ApiPersonalPhoneRoute: typeof ApiPersonalPhoneRoute
+  ApiRealtimekitRoute: typeof ApiRealtimekitRoute
+  ApiTelephoneListenRoute: typeof ApiTelephoneListenRoute
   ApiAdminCallsRoute: typeof ApiAdminCallsRoute
   ApiAuthSplatRoute: typeof ApiAuthSplatRoute
   ApiCallsCallRoute: typeof ApiCallsCallRoute
@@ -253,6 +292,13 @@ declare module '@tanstack/react-router' {
       path: '/chat'
       fullPath: '/chat'
       preLoaderRoute: typeof ChatRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/listen': {
+      id: '/listen'
+      path: '/listen'
+      fullPath: '/listen'
+      preLoaderRoute: typeof ListenRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/login': {
@@ -295,6 +341,20 @@ declare module '@tanstack/react-router' {
       path: '/api/personal-phone'
       fullPath: '/api/personal-phone'
       preLoaderRoute: typeof ApiPersonalPhoneRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/realtimekit': {
+      id: '/api/realtimekit'
+      path: '/api/realtimekit'
+      fullPath: '/api/realtimekit'
+      preLoaderRoute: typeof ApiRealtimekitRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/telephone-listen': {
+      id: '/api/telephone-listen'
+      path: '/api/telephone-listen'
+      fullPath: '/api/telephone-listen'
+      preLoaderRoute: typeof ApiTelephoneListenRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/admin/calls': {
@@ -340,12 +400,15 @@ const rootRouteChildren: RootRouteChildren = {
   AccountRoute: AccountRoute,
   AdminRoute: AdminRoute,
   ChatRoute: ChatRoute,
+  ListenRoute: ListenRoute,
   LoginRoute: LoginRoute,
   SignupRoute: SignupRoute,
   ApiAgentSettingsRoute: ApiAgentSettingsRoute,
   ApiChatRoute: ApiChatRoute,
   ApiIncomingRoute: ApiIncomingRoute,
   ApiPersonalPhoneRoute: ApiPersonalPhoneRoute,
+  ApiRealtimekitRoute: ApiRealtimekitRoute,
+  ApiTelephoneListenRoute: ApiTelephoneListenRoute,
   ApiAdminCallsRoute: ApiAdminCallsRoute,
   ApiAuthSplatRoute: ApiAuthSplatRoute,
   ApiCallsCallRoute: ApiCallsCallRoute,
