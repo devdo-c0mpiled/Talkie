@@ -53,5 +53,13 @@ export type CallLine = { id: string; role: 'agent' | 'business'; text: string; f
 
 /** Prefix of the hidden message the chat screen sends when a call has ended, followed by the call reference. */
 export const CALL_ENDED_MARKER = '[call-ended]'
-/** sessionStorage key for the number typed on the landing page. */
-export const CALL_NUMBER_STORAGE_KEY = 'tokie.call-number'
+/** What the visitor set up in the landing page call box, handed to the chat when they press Call. */
+export type CallIntent = {
+  number: string
+  /** Set when the number came from one of the sample businesses. */
+  businessName?: string
+  /** The kind of place ("clinic", "salon", …), set only when the visitor chose it themselves. */
+  placeType?: string
+}
+/** sessionStorage key for the landing page's CallIntent, stored as JSON. */
+export const CALL_INTENT_STORAGE_KEY = 'tokie.call-intent'

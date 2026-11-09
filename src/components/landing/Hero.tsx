@@ -3,7 +3,8 @@ import { useEffect, useState } from 'react'
 import type { RefObject, SubmitEvent } from 'react'
 import globe from '../../assets/landing/globe.svg'
 import tokie from '../../assets/landing/tokie.webp'
-import { CALL_NUMBER_STORAGE_KEY } from '../../lib/chat-tools'
+import { CALL_INTENT_STORAGE_KEY } from '../../lib/chat-tools'
+import type { CallIntent } from '../../lib/chat-tools'
 import { Icon } from './Icon'
 import { LineIcon } from './LineIcon'
 import { usePrefersReducedMotion } from './usePrefersReducedMotion'
@@ -37,6 +38,8 @@ export function Hero({ number, onNumberChange, inputRef }: HeroProps) {
   const [typed, setTyped] = useState(0)
   // Place types rotate on their own until the visitor picks one or a sample number.
   const [rotating, setRotating] = useState(true)
+  // Whether the place type on screen is the visitor's own choice rather than the rotation's.
+  const [placeChosen, setPlaceChosen] = useState(false)
 
   const sample = places[place].number
   const typedCount = reducedMotion ? sample.length : typed
@@ -58,6 +61,7 @@ export function Hero({ number, onNumberChange, inputRef }: HeroProps) {
 
   function pickPlace(index: number) {
     setRotating(false)
+    setPlaceChosen(true)
     setPlace(index)
     setTyped(0)
     onNumberChange('')
@@ -74,8 +78,12 @@ export function Hero({ number, onNumberChange, inputRef }: HeroProps) {
       inputRef.current?.focus()
       return
     }
-    // Kept out of the URL; the chat picks it up and offers to call it.
-    sessionStorage.setItem(CALL_NUMBER_STORAGE_KEY, number.trim())
+    const trimmed = number.trim()
+    const businessName = shortcuts.find((shortcut) => shortcut.number === trimmed)?.name
+    // A sample business says what it is; otherwise pass on the place type only if the visitor picked it.
+    const intent: CallIntent = { number: trimmed, businessName, placeType: !businessName && placeChosen ? places[place].word : undefined }
+    // Kept out of the URL; the chat picks it up and opens the conversation with it.
+    sessionStorage.setItem(CALL_INTENT_STORAGE_KEY, JSON.stringify(intent))
     void navigate({ to: '/chat' })
   }
 
