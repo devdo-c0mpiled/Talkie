@@ -212,7 +212,7 @@ export function startLiveMediaBridge(options: BridgeOptions): () => void {
         type: 'session.start',
         session: {
           model: 'gpt-live-1',
-          instructions: `${options.instructions}\n이미 받은 답변은 반복해서 확인하지 마세요. 예약 등 진행에 꼭 필요한 정보만 한 번 확인하고, 불명확할 때만 짧게 추가 질문하세요. 상대방의 답변을 충분히 기다리고 통화를 조기에 종료하지 마세요. 통화를 마치기 전에는 "통화 종료하겠습니다. 감사합니다."라고 끝까지 말하세요.`,
+          instructions: `${options.instructions}\n이미 받은 답변과 질문 내용은 반복해서 확인하지 마세요. 예약 등 진행에 꼭 필요한 정보만 간략하게 한 번 확인하고, 불명확할 때만 짧게 추가 질문하세요. 고객의 성함을 상담실장이나 업체 담당자에게 묻지 마세요. 담당자가 이름을 요청하면 이미 알고 있는 이름만 제공하고, 모르는 이름은 지어내지 마세요. 변경할 내용이 있는지 계속 묻지 말고 변경은 상대방이 요청할 때만 처리하세요. 상대방의 답변을 충분히 기다리고 통화를 조기에 종료하지 마세요. 통화를 마치기 전에는 "통화 종료하겠습니다. 감사합니다."라고 끝까지 말하세요.`,
           ...(options.history?.length ? { input: options.history.map(item => ({
             type: 'message', role: item.role,
             content: [{ type: item.role === 'user' ? 'input_text' : 'output_text', text: item.content }],

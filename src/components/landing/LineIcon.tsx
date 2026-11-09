@@ -6,6 +6,10 @@ const shapes = {
   copy: <><rect x="9" y="9" width="11" height="11" rx="2" /><path d="M5 15V6a2 2 0 0 1 2-2h8" /></>,
   share: <path d="M12 15V4M8 8l4-4 4 4M5 13v6a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-6" />,
   arrowUp: <path d="M12 19V5M5 12l7-7 7 7" />,
+  chevronLeft: <path d="M15 18l-6-6 6-6" />,
+  timer: <><circle cx="12" cy="13" r="8" /><path d="M12 9v4l2.5 2M9 2h6" /></>,
+  navigate: <path d="M3 11l18-8-8 18-2-8z" />,
+  calendar: <><rect x="3" y="5" width="18" height="16" rx="3" /><path d="M3 10h18M8 3v4M16 3v4" /></>,
 }
 
 /** Decorative stroke icon drawn in the current text color (see `.lp-ic`). */

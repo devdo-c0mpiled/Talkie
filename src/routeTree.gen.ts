@@ -22,11 +22,13 @@ import { Route as ApiIncomingRouteImport } from './routes/api.incoming'
 import { Route as ApiPersonalPhoneRouteImport } from './routes/api.personal-phone'
 import { Route as ApiRealtimekitRouteImport } from './routes/api.realtimekit'
 import { Route as ApiTelephoneListenRouteImport } from './routes/api.telephone-listen'
+import { Route as BIdRouteImport } from './routes/b.$id'
 import { Route as ApiAdminCallsRouteImport } from './routes/api.admin.calls'
 import { Route as ApiAuthSplatRouteImport } from './routes/api.auth.$'
 import { Route as ApiCallsCallRouteImport } from './routes/api.calls.$call'
 import { Route as ApiClawopsStreamRouteImport } from './routes/api.clawops.stream'
 import { Route as ApiClawopsVoiceRouteImport } from './routes/api.clawops.voice'
+import { Route as ApiBIdRecordingRouteImport } from './routes/api.b.$id.recording'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
@@ -93,6 +95,11 @@ const ApiTelephoneListenRoute = ApiTelephoneListenRouteImport.update({
   path: '/api/telephone-listen',
   getParentRoute: () => rootRouteImport,
 } as any)
+const BIdRoute = BIdRouteImport.update({
+  id: '/b/$id',
+  path: '/b/$id',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiAdminCallsRoute = ApiAdminCallsRouteImport.update({
   id: '/api/admin/calls',
   path: '/api/admin/calls',
@@ -118,6 +125,11 @@ const ApiClawopsVoiceRoute = ApiClawopsVoiceRouteImport.update({
   path: '/api/clawops/voice',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiBIdRecordingRoute = ApiBIdRecordingRouteImport.update({
+  id: '/api/b/$id/recording',
+  path: '/api/b/$id/recording',
+  getParentRoute: () => rootRouteImport,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -133,11 +145,13 @@ export interface FileRoutesByFullPath {
   '/api/personal-phone': typeof ApiPersonalPhoneRoute
   '/api/realtimekit': typeof ApiRealtimekitRoute
   '/api/telephone-listen': typeof ApiTelephoneListenRoute
+  '/b/$id': typeof BIdRoute
   '/api/admin/calls': typeof ApiAdminCallsRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
   '/api/calls/$call': typeof ApiCallsCallRoute
   '/api/clawops/stream': typeof ApiClawopsStreamRoute
   '/api/clawops/voice': typeof ApiClawopsVoiceRoute
+  '/api/b/$id/recording': typeof ApiBIdRecordingRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -153,11 +167,13 @@ export interface FileRoutesByTo {
   '/api/personal-phone': typeof ApiPersonalPhoneRoute
   '/api/realtimekit': typeof ApiRealtimekitRoute
   '/api/telephone-listen': typeof ApiTelephoneListenRoute
+  '/b/$id': typeof BIdRoute
   '/api/admin/calls': typeof ApiAdminCallsRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
   '/api/calls/$call': typeof ApiCallsCallRoute
   '/api/clawops/stream': typeof ApiClawopsStreamRoute
   '/api/clawops/voice': typeof ApiClawopsVoiceRoute
+  '/api/b/$id/recording': typeof ApiBIdRecordingRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -174,11 +190,13 @@ export interface FileRoutesById {
   '/api/personal-phone': typeof ApiPersonalPhoneRoute
   '/api/realtimekit': typeof ApiRealtimekitRoute
   '/api/telephone-listen': typeof ApiTelephoneListenRoute
+  '/b/$id': typeof BIdRoute
   '/api/admin/calls': typeof ApiAdminCallsRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
   '/api/calls/$call': typeof ApiCallsCallRoute
   '/api/clawops/stream': typeof ApiClawopsStreamRoute
   '/api/clawops/voice': typeof ApiClawopsVoiceRoute
+  '/api/b/$id/recording': typeof ApiBIdRecordingRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -196,11 +214,13 @@ export interface FileRouteTypes {
     | '/api/personal-phone'
     | '/api/realtimekit'
     | '/api/telephone-listen'
+    | '/b/$id'
     | '/api/admin/calls'
     | '/api/auth/$'
     | '/api/calls/$call'
     | '/api/clawops/stream'
     | '/api/clawops/voice'
+    | '/api/b/$id/recording'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -216,11 +236,13 @@ export interface FileRouteTypes {
     | '/api/personal-phone'
     | '/api/realtimekit'
     | '/api/telephone-listen'
+    | '/b/$id'
     | '/api/admin/calls'
     | '/api/auth/$'
     | '/api/calls/$call'
     | '/api/clawops/stream'
     | '/api/clawops/voice'
+    | '/api/b/$id/recording'
   id:
     | '__root__'
     | '/'
@@ -236,11 +258,13 @@ export interface FileRouteTypes {
     | '/api/personal-phone'
     | '/api/realtimekit'
     | '/api/telephone-listen'
+    | '/b/$id'
     | '/api/admin/calls'
     | '/api/auth/$'
     | '/api/calls/$call'
     | '/api/clawops/stream'
     | '/api/clawops/voice'
+    | '/api/b/$id/recording'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -257,11 +281,13 @@ export interface RootRouteChildren {
   ApiPersonalPhoneRoute: typeof ApiPersonalPhoneRoute
   ApiRealtimekitRoute: typeof ApiRealtimekitRoute
   ApiTelephoneListenRoute: typeof ApiTelephoneListenRoute
+  BIdRoute: typeof BIdRoute
   ApiAdminCallsRoute: typeof ApiAdminCallsRoute
   ApiAuthSplatRoute: typeof ApiAuthSplatRoute
   ApiCallsCallRoute: typeof ApiCallsCallRoute
   ApiClawopsStreamRoute: typeof ApiClawopsStreamRoute
   ApiClawopsVoiceRoute: typeof ApiClawopsVoiceRoute
+  ApiBIdRecordingRoute: typeof ApiBIdRecordingRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -357,6 +383,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiTelephoneListenRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/b/$id': {
+      id: '/b/$id'
+      path: '/b/$id'
+      fullPath: '/b/$id'
+      preLoaderRoute: typeof BIdRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/admin/calls': {
       id: '/api/admin/calls'
       path: '/api/admin/calls'
@@ -392,6 +425,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiClawopsVoiceRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/b/$id/recording': {
+      id: '/api/b/$id/recording'
+      path: '/api/b/$id/recording'
+      fullPath: '/api/b/$id/recording'
+      preLoaderRoute: typeof ApiBIdRecordingRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
@@ -409,11 +449,13 @@ const rootRouteChildren: RootRouteChildren = {
   ApiPersonalPhoneRoute: ApiPersonalPhoneRoute,
   ApiRealtimekitRoute: ApiRealtimekitRoute,
   ApiTelephoneListenRoute: ApiTelephoneListenRoute,
+  BIdRoute: BIdRoute,
   ApiAdminCallsRoute: ApiAdminCallsRoute,
   ApiAuthSplatRoute: ApiAuthSplatRoute,
   ApiCallsCallRoute: ApiCallsCallRoute,
   ApiClawopsStreamRoute: ApiClawopsStreamRoute,
   ApiClawopsVoiceRoute: ApiClawopsVoiceRoute,
+  ApiBIdRecordingRoute: ApiBIdRecordingRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

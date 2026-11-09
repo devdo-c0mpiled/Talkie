@@ -21,6 +21,7 @@ const TRANSCRIPT_WAIT_MS = 30_000
 
 export type CallStatus = { state: 'calling' | 'done'; outcome: string; transcriptIncomplete?: boolean }
 export type CallResult = (CallStatus | { state: 'unknown'; outcome: 'status-unavailable' }) & { transcript?: string; analysis: CallAnalysis }
+export type CallReport = CallStatus & { to?: string; endedAt?: string; hasRecording: boolean; lines: CallLine[]; transcript?: string }
 
 export function callsConfigured() {
   const from = normalizeKoreanNumber(env.CLAWOPS_FROM_NUMBER ?? '')
@@ -111,22 +112,38 @@ export async function placeCall(to: string, instruction: string, actionId: strin
 }
 
 /** Whether a call is still going, and how it ended: only "completed" means somebody answered. */
-export async function getCallStatus(callId: string): Promise<CallStatus & { recordingUrl?: string | null }> {
-  const call = await clawops<{ status?: string; recordingUrl?: string | null }>(`/calls/${callId}`)
+export async function getCallStatus(callId: string): Promise<CallStatus & { to?: string; endedAt?: string; hasRecording: boolean }> {
+  const call = await clawops<{ status?: string; to?: string; dateUpdated?: string | null; recordingUrl?: string | null }>(`/calls/${callId}`)
   if (call.status !== 200 || typeof call.body?.status !== 'string') throw new Error('ClawOps call status unavailable')
   const outcome = call.body.status
   if (!ENDED.has(outcome) && !IN_PROGRESS.has(outcome)) throw new Error('ClawOps call status unavailable')
+  const details = { to: call.body.to, endedAt: ENDED.has(outcome) ? call.body.dateUpdated ?? undefined : undefined, hasRecording: Boolean(call.body.recordingUrl) }
   if (outcome === 'completed') {
     const now = Date.now()
     const bridge = await env.DB.prepare(`UPDATE live_calls SET provider_completed_at = COALESCE(provider_completed_at, ?)
       WHERE call_id = ? RETURNING provider_completed_at, bridge_finished_at`).bind(now, callId)
       .first<{ provider_completed_at: number; bridge_finished_at: number | null }>()
     if (!bridge) throw new Error('Call reservation unavailable')
-    if (bridge.bridge_finished_at !== null) return { state: 'done', outcome }
-    if (now - bridge.provider_completed_at < TRANSCRIPT_WAIT_MS) return { state: 'calling', outcome }
-    return { state: 'done', outcome, transcriptIncomplete: true }
+    if (bridge.bridge_finished_at !== null) return { state: 'done', outcome, ...details }
+    if (now - bridge.provider_completed_at < TRANSCRIPT_WAIT_MS) return { state: 'calling', outcome, ...details }
+    return { state: 'done', outcome, transcriptIncomplete: true, ...details }
   }
-  return { state: ENDED.has(outcome) ? 'done' : 'calling', outcome, recordingUrl: call.body.recordingUrl }
+  return { state: ENDED.has(outcome) ? 'done' : 'calling', outcome, ...details }
+}
+
+/** When the call was picked up, in ms since the epoch: the zero point of its recording. */
+export async function getCallAnsweredAt(callId: string): Promise<number | undefined> {
+  const events = await clawops<{ data?: { event: string; timestamp: string }[] }>(`/calls/${callId}/events`)
+  if (events.status !== 200) return undefined
+  const answered = events.body.data?.find(({ event }) => event === 'call.answered')
+  const timestamp = answered ? Date.parse(answered.timestamp) : NaN
+  return Number.isFinite(timestamp) ? timestamp : undefined
+}
+
+/** The call's recording (WAV), or null when there is none yet. */
+export async function fetchCallRecording(callId: string): Promise<Response | null> {
+  const response = await fetch(`${API}/${env.CLAWOPS_ACCOUNT_ID}/recordings/${callId}`, { redirect: 'manual', headers: { authorization: `Bearer ${env.CLAWOPS_API_KEY}` } })
+  return response.ok ? response : null
 }
 
 /** Live transcript lines from our own GPT-Live bridge. */
@@ -207,6 +224,24 @@ export async function getCallResult(callId: string): Promise<CallResult> {
     }
   })
   return { state, outcome, transcript, transcriptIncomplete: incomplete || undefined, analysis }
+}
+
+/** The report needed by the booking page, using the same bridge transcript as call analysis. */
+export async function getCallReport(callId: string): Promise<CallReport> {
+  const status = await getCallStatus(callId)
+  if (status.state !== 'done' || status.outcome !== 'completed') return { ...status, lines: [] }
+  const lines = await getCallLines(callId)
+  if (!lines.length) return { ...status, lines, transcript: await transcribeRecording(callId), transcriptIncomplete: true }
+  const transcript = lines.map(({ role, text }) => `${role === 'agent' ? 'Tokie agent' : 'Business'}: ${text}`).join('\n')
+  let incomplete = status.transcriptIncomplete || transcript.length > MAX_TRANSCRIPT_CHARS
+  try {
+    const count = await env.DB.prepare('SELECT count(*) AS count FROM live_call_transcripts WHERE call_id = ?').bind(callId).first<{ count: number }>()
+    incomplete ||= !count || count.count >= 2000
+  } catch {
+    incomplete = true
+  }
+  // A partial transcript must not generate a booking page that presents uncertain details as settled.
+  return { ...status, lines: incomplete ? [] : lines, transcript: transcript.slice(0, MAX_TRANSCRIPT_CHARS), transcriptIncomplete: incomplete || undefined }
 }
 
 // Call references handed to the browser are signed, so only calls this app placed can be looked up

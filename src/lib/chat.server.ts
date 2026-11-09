@@ -3,8 +3,9 @@ import '@tanstack/react-start/server-only'
 import { env } from 'cloudflare:workers'
 import { chat, chatParamsFromRequest, toServerSentEventsResponse } from '@tanstack/ai'
 import { getOpenAiChat } from './ai.server'
+import { prepareCallResult } from './call-result.server'
 import { CALL_ENDED_MARKER, callBusinessDef, getCallResultDef } from './chat-tools'
-import { callsConfigured, fromCallReference, getCallResult as lookUpCallResult, normalizeKoreanNumber, placeCall, toCallReference } from './clawops.server'
+import { callsConfigured, fromCallReference, getCallReport, getCallResult as lookUpCallResult, normalizeKoreanNumber, placeCall, toCallReference } from './clawops.server'
 
 const MODEL = 'gpt-6.1-terra'
 // The endpoint is public, so cap what a single request can cost.
@@ -29,14 +30,24 @@ const CALLS_PROMPT = `Calling a business
 - Only call a number the traveler typed in this chat. If you do not have the number, ask for it. Before calling, make sure you know what to ask or book and every detail the business will need (date, time, party size, name to book under). Ask the traveler for whatever is missing first.
 - The app asks the traveler to approve each call, so do not ask "shall I call?" yourself: call the tool once you have what you need.
 - When the tool returns status "calling", tell the traveler in one sentence that the call is on its way and that you will report back. For "invalid-number", ask them to check the number. For "failed", say the call could not be placed; if the reason is "instruction-too-long", ask the traveler to shorten the request. For "unknown", say the call may have been placed but its status could not be confirmed; do not place another call automatically.
-- A message starting with ${CALL_ENDED_MARKER} comes from the app, not the traveler: the call it names has ended. Call ${getCallResultDef.name} with that reference, then tell the traveler what happened in their language. The transcript is in Korean; lines are labelled "Tokie agent" (the voice agent) and "Business", or unlabelled with the agent speaking first. The traveler may have watched the Korean lines appear live, so focus on what they mean. Report only what the transcript shows; say clearly whether the booking was confirmed, refused or left open, and what the traveler should do next. If transcriptIncomplete is true, explain that the transcript may be incomplete, and do not claim nothing was said. If there is no transcript and it is not incomplete, say how the call ended (for example nobody answered). If the traveler asks about a call that is still going (state "calling"), say it is still in progress. Never mention the marker or the reference.`
+- A message starting with ${CALL_ENDED_MARKER} comes from the app, not the traveler: the call it names has ended. Call ${getCallResultDef.name} with that reference, then tell the traveler what happened in their language. The transcript is in Korean; lines are labelled "Tokie agent" (the voice agent) and "Business", or unlabelled with the agent speaking first. The traveler may have watched the Korean lines appear live, so focus on what they mean. Report only what the transcript shows; say clearly whether the booking was confirmed, refused or left open, and what the traveler should do next. If transcriptIncomplete is true, explain that the transcript may be incomplete, and do not claim nothing was said. If there is no transcript and it is not incomplete, say how the call ended (for example nobody answered). If the traveler asks about a call that is still going (state "calling"), say it is still in progress. Never mention the marker or the reference.
+- When ${getCallResultDef.name} returns a result, the app shows a link to a page with the booking details and the whole call right under your reply. Keep the reply to one or two sentences that end by pointing to it. Do not list the other details or write a link yourself.`
 
 const NO_CALLS_PROMPT = `Calling a business
 - You cannot place calls yet. If the traveler asks you to call a business, say that phone calls are not available yet, and offer to write a message they can send instead.`
 
-const getCallResult = getCallResultDef.server(async ({ call }) => {
+const getCallResult = getCallResultDef.server(async ({ call, businessName, language }) => {
   const callId = await fromCallReference(call)
-  return callId ? lookUpCallResult(callId) : { state: 'unknown' as const, outcome: 'unknown' }
+  if (!callId) return { state: 'unknown' as const, outcome: 'unknown' }
+  const callResult = await lookUpCallResult(callId)
+  if (callResult.state !== 'done' || callResult.outcome !== 'completed' || callResult.transcriptIncomplete) return callResult
+  // The page is a bonus: a failure to build it must not cost the traveler the report itself.
+  const result = await getCallReport(callId)
+    .then((report) => report.state === 'done' && !report.transcriptIncomplete && report.transcript === callResult.transcript ? prepareCallResult(callId, report, businessName, language, callResult.analysis) : null)
+    .catch(() => null)
+  if (!result) return callResult
+  const { id, status, business, headline, when } = result
+  return { ...callResult, result: { id, status, business, headline, when } }
 })
 
 export async function handleChat(request: Request): Promise<Response> {

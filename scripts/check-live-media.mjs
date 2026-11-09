@@ -42,6 +42,9 @@ assert.match(live.sent[0].session.instructions, /통화 종료하겠습니다\. 
 assert.match(live.sent[0].session.instructions, /기다리/, 'the phone session waits for the other person')
 assert.match(live.sent[0].session.instructions, /반복해서 확인하지/, 'the phone session avoids repeating answered questions')
 assert.match(live.sent[0].session.instructions, /불명확/, 'the phone session asks follow-up questions only when needed')
+assert.match(live.sent[0].session.instructions, /고객.*성함.*묻지/, 'the agent does not ask the business for the customer name')
+assert.match(live.sent[0].session.instructions, /지어내지/, 'the agent does not invent a missing customer name')
+assert.match(live.sent[0].session.instructions, /변경.*상대방.*요청/, 'the agent handles changes only when requested')
 assert.deepEqual(live.sent[0].session.audio.format, { type: 'audio/pcmu', rate: 8000 })
 assert.deepEqual(live.sent[0].session.input, [
   { type: 'message', role: 'user', content: [{ type: 'input_text', text: 'Prior request' }] },
