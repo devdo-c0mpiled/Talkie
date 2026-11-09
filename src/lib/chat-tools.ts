@@ -25,7 +25,7 @@ export const callBusinessDef = toolDefinition({
   description: 'Phone a Korean business for the traveler. A Korean-speaking voice agent makes the call. The traveler has to approve every call first.',
   inputSchema: callRequest,
   outputSchema: z.object({
-    status: z.enum(['calling', 'invalid-number', 'failed']),
+    status: z.enum(['calling', 'invalid-number', 'failed', 'unknown']),
     /** Opaque reference to the call, for get_call_result. Only present when the call was placed. */
     call: z.string().optional(),
     reason: z.string().optional(),
@@ -44,6 +44,7 @@ export const getCallResultDef = toolDefinition({
     outcome: z.string(),
     /** Korean. Lines are labelled "Tokie agent" and "Business" when the live transcript is available; otherwise unlabelled, with the agent speaking first. */
     transcript: z.string().optional(),
+    transcriptIncomplete: z.boolean().optional(),
   }),
 })
 

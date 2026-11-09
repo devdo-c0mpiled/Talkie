@@ -16,12 +16,12 @@ const worker = new Miniflare({ workers: [{ config: { name: 'clawops-integration'
 const origin = 'https://example.test'
 const url = `${origin}/api/clawops/voice`
 const fields = { CallId: 'CA_TEST', AccountId: 'AC_TEST', From: '01012340000', To: '07012340000', CallStatus: 'in-progress', Direction: 'inbound' }
-function signedRequest(params, signing = 'synthetic-signing-key') {
-  const content = url + Object.keys(params).sort().map(key => key + params[key]).join('')
-  return [url, { method: 'POST', headers: { 'content-type': 'application/x-www-form-urlencoded', 'x-signature': createHmac('sha256', signing).update(content).digest('base64') }, body: new URLSearchParams(params).toString() }]
+function signedRequest(params, signing = 'synthetic-signing-key', targetUrl = url) {
+  const content = targetUrl + Object.keys(params).sort().map(key => key + params[key]).join('')
+  return [targetUrl, { method: 'POST', headers: { 'content-type': 'application/x-www-form-urlencoded', 'x-signature': createHmac('sha256', signing).update(content).digest('base64') }, body: new URLSearchParams(params).toString() }]
 }
-function streamStart(callId, token) {
-  return JSON.stringify({ event: 'start', start: { callId, accountId: 'AC_TEST', streamId: 'MS_TEST', customParameters: { callId, token }, mediaFormat: { encoding: 'audio/x-mulaw', sampleRate: 8000, channels: 1 } } })
+function streamStart(callId, token, extra = {}) {
+  return JSON.stringify({ event: 'start', start: { callId, accountId: 'AC_TEST', streamId: 'MS_TEST', customParameters: { callId, token, ...extra }, mediaFormat: { encoding: 'audio/x-mulaw', sampleRate: 8000, channels: 1 } } })
 }
 function nextMessage(socket) {
   return new Promise((resolve, reject) => {
@@ -32,9 +32,19 @@ function nextMessage(socket) {
 }
 try {
   const db = await worker.getD1Database('DB')
+  for (const statement of (await readFile('migrations/0001_auth.sql', 'utf8')).split(';').map(value => value.trim()).filter(Boolean)) await db.prepare(statement).run()
   await db.prepare(await readFile('migrations/0003_clawops_stream_tokens.sql', 'utf8')).run()
-  assert.equal((await worker.dispatchFetch(...signedRequest(fields, 'forged'))).status, 401)
-  const response = await worker.dispatchFetch(...signedRequest(fields))
+  const migration = await readFile('migrations/0004_live_call_transcripts.sql', 'utf8')
+  for (const statement of migration.split(';').map(value => value.trim()).filter(Boolean)) await db.prepare(statement).run()
+  for (const statement of (await readFile('migrations/0005_clawops_stream_context.sql', 'utf8')).split(';').map(value => value.trim()).filter(Boolean)) await db.prepare(statement).run()
+  for (const statement of (await readFile('migrations/0006_customers.sql', 'utf8')).split(';').map(value => value.trim()).filter(Boolean)) await db.prepare(statement).run()
+  await db.prepare('INSERT INTO "user" (id, name, email, createdAt, updatedAt) VALUES (?, ?, ?, 1, 1)').bind('synthetic-user', 'test', 'test@example.invalid').run()
+  await db.prepare('UPDATE customers SET user_id = ?, phone_number = ? WHERE customer_no = 1').bind('synthetic-user', '07012340000').run()
+  const unknownTo = { ...fields, CallId: 'CA_UNKNOWN_CUSTOMER', To: '07099999999' }
+  assert.equal((await worker.dispatchFetch(...signedRequest(unknownTo))).status, 401, 'unassigned inbound numbers cannot create conversations')
+  const [inboundUrl, inboundOptions] = signedRequest(fields)
+  delete inboundOptions.headers['x-signature']
+  const response = await worker.dispatchFetch(inboundUrl, inboundOptions)
   assert.equal(response.status, 200)
   const xml = await response.text()
   const token = xml.match(/<Parameter name="token" value="([0-9a-f]{64})"\/>/)?.[1]
@@ -52,6 +62,17 @@ try {
   const events = await (await worker.dispatchFetch(`${origin}/test/events`)).json()
   assert.equal(events.filter(event => event.type === 'session.start').length, 1)
   assert.ok(events.some(event => event.type === 'session.input_audio.append' && event.audio === 'AQID'))
+  const inboundConversation = await db.prepare('SELECT c.customer_id, c.caller_number FROM inbound_conversations c JOIN inbound_conversation_calls cc ON cc.conversation_id = c.id WHERE cc.call_id = ?').bind(fields.CallId).first()
+  assert.deepEqual(inboundConversation, { customer_id: '0001', caller_number: '+821012340000' })
+  const repeatedCaller = { ...fields, CallId: 'CA_SAME_CALLER', From: '+821012340000' }
+  const repeatResponse = await worker.dispatchFetch(...signedRequest(repeatedCaller))
+  assert.equal(repeatResponse.status, 200)
+  const repeatToken = (await repeatResponse.text()).match(/<Parameter name="token" value="([0-9a-f]{64})"\/>/)?.[1]
+  assert.ok(repeatToken)
+  const conversations = await db.prepare('SELECT count(*) AS count FROM inbound_conversations').first()
+  assert.equal(conversations.count, 1, 'the same customer and caller reuse their conversation')
+  const hiddenCaller = { ...fields, CallId: 'CA_PRIVATE_CALLER', From: '' }
+  assert.equal((await worker.dispatchFetch(...signedRequest(hiddenCaller))).status, 200, 'calls without a visible number create a conversation')
   const retry = await worker.dispatchFetch(`${origin}/api/clawops/stream`, { headers: { Upgrade: 'websocket' } })
   const replay = retry.webSocket
   assert.ok(replay)
@@ -63,6 +84,83 @@ try {
   replay.send(streamStart(fields.CallId, token))
   assert.equal(await closed, 1008)
   socket.close(1000)
+  let inboundFragments = []
+  for (let i = 0; i < 30; i++) {
+    inboundFragments = (await db.prepare('SELECT role, text FROM live_call_transcripts WHERE call_id = ? ORDER BY rowid').bind(fields.CallId).all()).results
+    if (inboundFragments.length === 2) break
+    await new Promise(resolve => setTimeout(resolve, 50))
+  }
+  assert.deepEqual(inboundFragments.map(({ role, text }) => ({ role, text })), [{ role: 'business', text: 'hello ' }, { role: 'agent', text: ' last' }], 'incoming speech and AI output are saved to the customer call')
+  for (let i = 0; i < 30; i++) {
+    const row = await db.prepare('SELECT bridge_finished_at FROM live_calls WHERE call_id = ?').bind(fields.CallId).first()
+    if (row?.bridge_finished_at) break
+    await new Promise(resolve => setTimeout(resolve, 50))
+  }
+  const repeatedUpgrade = await worker.dispatchFetch(`${origin}/api/clawops/stream`, { headers: { Upgrade: 'websocket' } })
+  const repeatedSocket = repeatedUpgrade.webSocket
+  repeatedSocket.accept()
+  const repeatedMedia = nextMessage(repeatedSocket)
+  repeatedSocket.send(streamStart(repeatedCaller.CallId, repeatToken))
+  repeatedSocket.send(JSON.stringify({ event: 'media', media: { payload: 'AQID' } }))
+  await repeatedMedia
+  const repeatEvents = await (await worker.dispatchFetch(`${origin}/test/events`)).json()
+  const resumed = repeatEvents.filter(event => event.type === 'session.start').at(-1)
+  assert.deepEqual(resumed.session.input, [
+    { type: 'message', role: 'user', content: [{ type: 'input_text', text: 'hello ' }] },
+    { type: 'message', role: 'assistant', content: [{ type: 'output_text', text: ' last' }] },
+  ], 'a repeat caller resumes prior conversation as messages')
+  repeatedSocket.close(1000)
+  const intent = 'a'.repeat(64)
+  await db.prepare('INSERT INTO live_calls (intent, action_id, destination, instruction) VALUES (?, ?, ?, ?)').bind(intent, 'b'.repeat(64), '01012340000', 'Synthetic task').run()
+  const outboundFields = { ...fields, CallId: 'CA_OUTBOUND', Direction: 'outbound', From: '07012340000', To: '+821012340000' }
+  const badTo = { ...outboundFields, CallId: 'CA_WRONG_TO', To: '01099999999' }
+  assert.equal((await worker.dispatchFetch(...signedRequest(badTo, 'synthetic-signing-key', `${url}?intent=${intent}`))).status, 401, 'a signed webhook cannot bind a different destination')
+  const badIntent = { ...outboundFields, CallId: 'CA_WRONG_INTENT' }
+  assert.equal((await worker.dispatchFetch(...signedRequest(badIntent, 'synthetic-signing-key', `${url}?intent=${'f'.repeat(64)}`))).status, 401, 'a signed webhook cannot bind an unknown intent')
+  const outbound = await worker.dispatchFetch(...signedRequest(outboundFields, 'synthetic-signing-key', `${url}?intent=${intent}`))
+  assert.equal(outbound.status, 200, 'an intent can be bound before the create-call response arrives')
+  const outboundXml = await outbound.text()
+  const outboundToken = outboundXml.match(/<Parameter name="token" value="([0-9a-f]{64})"\/>/)?.[1]
+  assert.ok(outboundToken)
+  const tamperedUpgrade = await worker.dispatchFetch(`${origin}/api/clawops/stream`, { headers: { Upgrade: 'websocket' } })
+  const tamperedSocket = tamperedUpgrade.webSocket
+  tamperedSocket.accept()
+  const tamperedClosed = new Promise((resolve, reject) => {
+    const timer = setTimeout(() => reject(Error('Stripped context was not rejected')), 5000)
+    tamperedSocket.addEventListener('close', event => { clearTimeout(timer); resolve(event.code) }, { once: true })
+  })
+  tamperedSocket.send(streamStart(outboundFields.CallId, outboundToken))
+  assert.equal(await tamperedClosed, 1008, 'outbound context cannot be stripped from the stream start')
+  const upgradedOutbound = await worker.dispatchFetch(`${origin}/api/clawops/stream`, { headers: { Upgrade: 'websocket' } })
+  const outboundSocket = upgradedOutbound.webSocket
+  outboundSocket.accept()
+  const outboundMedia = nextMessage(outboundSocket)
+  outboundSocket.send(streamStart(outboundFields.CallId, outboundToken, { intent, to: '01012340000' }))
+  outboundSocket.send(JSON.stringify({ event: 'media', media: { payload: 'AQID' } }))
+  assert.deepEqual(await outboundMedia, { event: 'media', media: { payload: 'AQID' } })
+  const outboundEvents = await (await worker.dispatchFetch(`${origin}/test/events`)).json()
+  assert.equal(outboundEvents.filter(event => event.type === 'session.start').at(-1).session.instructions, 'Synthetic task')
+  outboundSocket.send(JSON.stringify({ event: 'stop' }))
+  let fragments = []
+  for (let i = 0; i < 30; i++) {
+    fragments = (await db.prepare('SELECT role, text FROM live_call_transcripts WHERE call_id = ? ORDER BY rowid').bind(outboundFields.CallId).all()).results
+    if (fragments.length === 2) break
+    await new Promise(resolve => setTimeout(resolve, 50))
+  }
+  assert.deepEqual(fragments.map(({ role, text }) => ({ role, text })), [{ role: 'business', text: 'hello ' }, { role: 'agent', text: ' last' }])
+  let finished = false
+  for (let i = 0; i < 30; i++) {
+    const row = await db.prepare('SELECT bridge_finished_at FROM live_calls WHERE call_id = ?').bind(outboundFields.CallId).first()
+    if (row?.bridge_finished_at) { finished = true; break }
+    await new Promise(resolve => setTimeout(resolve, 50))
+  }
+  assert.equal(finished, true, 'the bridge is marked finished only after the final transcript is persisted')
+  const unsignedIntent = 'c'.repeat(64)
+  await db.prepare('INSERT INTO live_calls (intent, action_id, destination, instruction) VALUES (?, ?, ?, ?)').bind(unsignedIntent, 'd'.repeat(64), '01012340000', 'Unsigned synthetic task').run()
+  const [unsignedUrl, unsignedOptions] = signedRequest({ ...outboundFields, CallId: 'CA_UNSIGNED' }, 'synthetic-signing-key', `${url}?intent=${unsignedIntent}`)
+  delete unsignedOptions.headers['x-signature']
+  unsignedOptions.headers['x-test-unsigned'] = '1'
+  assert.equal((await worker.dispatchFetch(unsignedUrl, unsignedOptions)).status, 200, 'reserved outbound webhook works without a signing key')
   console.log('ClawOps webhook and bidirectional media integration passed with a local D1 and mocked OpenAI')
 } finally {
   await worker.dispose()

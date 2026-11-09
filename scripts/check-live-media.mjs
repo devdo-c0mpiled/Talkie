@@ -26,7 +26,7 @@ const ended = []
 const received = []
 let request
 startLiveMediaBridge({
-  phone, apiKey: 'fake-key', instructions: 'Help the caller', bufferedEvents: [media('AQ==')],
+  phone, apiKey: 'fake-key', instructions: 'Help the caller', bufferedEvents: [media('AQ==')], history: [{ role: 'user', content: 'Prior request' }, { role: 'assistant', content: 'Prior reply' }],
   fetcher: async (url, init) => { request = { url, init }; return { webSocket: live } },
   onEvent: (event, send) => { received.push(event.type); if (event.type === 'session.started') assert.equal(send({ type: 'test' }), true) },
   onEnd: reason => ended.push(reason),
@@ -38,6 +38,10 @@ assert.equal(request.init.headers.Authorization, 'Bearer fake-key')
 assert.equal(request.init.redirect, 'manual')
 assert.equal(live.sent[0].type, 'session.start')
 assert.deepEqual(live.sent[0].session.audio.format, { type: 'audio/pcmu', rate: 8000 })
+assert.deepEqual(live.sent[0].session.input, [
+  { type: 'message', role: 'user', content: [{ type: 'input_text', text: 'Prior request' }] },
+  { type: 'message', role: 'assistant', content: [{ type: 'output_text', text: 'Prior reply' }] },
+])
 assert.equal(live.sent.length, 1)
 live.emit('message', JSON.stringify({ type: 'session.started' }))
 assert.deepEqual(live.sent.slice(1), [
@@ -51,12 +55,14 @@ live.emit('message', JSON.stringify({ type: 'session.output_audio.delta', delta:
 assert.deepEqual(phone.sent, [{ event: 'media', media: { payload: 'BA==' } }])
 assert.deepEqual(received, ['session.started', 'session.output_audio.delta'])
 phone.emit('message', JSON.stringify({ event: 'stop' }))
-assert.deepEqual(ended, ['phone_closed'])
+assert.deepEqual(ended, [], 'the close handshake still accepts final transcript events')
 assert.equal(phone.readyState, 3)
 assert.equal(live.readyState, 1)
 assert.deepEqual(live.sent.at(-1), { type: 'session.close' })
-live.emit('message', JSON.stringify({ type: 'session.closed' }))
+live.emit('message', JSON.stringify({ type: 'session.closed', reason: 'close_requested' }))
+await tick()
 assert.equal(live.readyState, 3)
+assert.deepEqual(ended, ['phone_closed'])
 
 const badPhone = new Socket()
 const badLive = new Socket()
@@ -71,6 +77,7 @@ const overflowPhone = new Socket()
 const overflow = []
 startLiveMediaBridge({ phone: overflowPhone, apiKey: 'fake-key', instructions: '', fetcher: () => new Promise(() => {}), onEnd: reason => overflow.push(reason) })
 for (let i = 0; i < 100; i++) overflowPhone.emit('message', media('AAAA'.repeat(1000)))
+await tick()
 assert.deepEqual(overflow, ['overflow'])
 assert.equal(overflowPhone.readyState, 3)
 const timeoutPhone = new Socket()
@@ -90,9 +97,56 @@ try {
   assert.equal(closeTimer.delay, 15_000)
   assert.equal(closeTimer.cleared, false)
   closeTimer.fn()
+  await Promise.resolve()
+  await Promise.resolve()
   assert.equal(timeoutLive.readyState, 3)
 } finally {
   globalThis.setTimeout = originalSetTimeout
   globalThis.clearTimeout = originalClearTimeout
 }
+const drainPhone = new Socket()
+const drainLive = new Socket()
+let release
+const persisted = []
+const finished = []
+startLiveMediaBridge({
+  phone: drainPhone, apiKey: 'fake-key', instructions: '', fetcher: async () => ({ webSocket: drainLive }),
+  onEvent: event => event.type === 'session.input_transcript.delta' ? new Promise(resolve => { release = () => { persisted.push(event.delta); resolve() } }) : undefined,
+  onEnd: (reason, result) => finished.push({ reason, ...result }),
+})
+await tick()
+drainLive.emit('message', JSON.stringify({ type: 'session.started' }))
+drainPhone.emit('message', JSON.stringify({ event: 'stop' }))
+drainLive.emit('message', JSON.stringify({ type: 'session.input_transcript.delta', delta: ' last' }))
+drainLive.emit('message', JSON.stringify({ type: 'session.closed', reason: 'close_requested' }))
+await tick()
+assert.equal(drainLive.readyState, 1, 'keep the socket open until transcript writes finish')
+assert.deepEqual(finished, [])
+release()
+await tick()
+assert.deepEqual(persisted, [' last'])
+assert.deepEqual(finished, [{ reason: 'phone_closed', transcriptComplete: true }])
+assert.equal(drainLive.readyState, 3)
+const failurePhone = new Socket()
+const failureLive = new Socket()
+const persistenceFailure = []
+startLiveMediaBridge({
+  phone: failurePhone, apiKey: 'fake-key', instructions: '', fetcher: async () => ({ webSocket: failureLive }),
+  onEvent: event => event.type === 'session.input_transcript.delta' ? Promise.reject(Error('synthetic write failure')) : undefined,
+  onEnd: (_reason, result) => persistenceFailure.push(result),
+})
+await tick()
+failureLive.emit('message', JSON.stringify({ type: 'session.started' }))
+failureLive.emit('message', JSON.stringify({ type: 'session.input_transcript.delta', delta: 'text' }))
+await tick()
+assert.deepEqual(persistenceFailure, [{ transcriptComplete: false }], 'failed persistence cannot report a complete transcript')
+const lostPhone = new Socket()
+const lostLive = new Socket()
+const lost = []
+startLiveMediaBridge({ phone: lostPhone, apiKey: 'fake-key', instructions: '', fetcher: async () => ({ webSocket: lostLive }), onEnd: (_reason, result) => lost.push(result) })
+await tick()
+lostLive.emit('message', JSON.stringify({ type: 'session.started' }))
+lostLive.emit('message', JSON.stringify({ type: 'session.closed', reason: 'connection_lost' }))
+await tick()
+assert.deepEqual(lost, [{ transcriptComplete: false }], 'connection loss cannot mark the transcript complete')
 console.log('GPT-Live media bridge checks passed')

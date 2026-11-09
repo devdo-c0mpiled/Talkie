@@ -16,8 +16,8 @@ function record(value: unknown): value is Record<string, unknown> {
 }
 
 // One instance belongs to one Live session. Transcript and IDs never leave it.
-export function createLiveDelegation({ send }: { send: (event: Commentary) => void }) {
-  let transcript: Transcript[] = []
+export function createLiveDelegation({ send, history = [] }: { send: (event: Commentary) => void; history?: Transcript[] }) {
+  let transcript: Transcript[] = history.map(message => ({ ...message }))
   let inputRevision = 0
   let closed = false
   const threadId = crypto.randomUUID()
@@ -85,7 +85,7 @@ export function createLiveDelegation({ send }: { send: (event: Commentary) => vo
         adapter: getOpenAiChat(),
         threadId,
         messages,
-        systemPrompts: ['You are a voice assistant backend. Respond briefly in the caller’s language. Do not claim an action was completed unless it was actually completed.'],
+        systemPrompts: ['You are a voice assistant backend. Respond briefly in the caller’s language. Do not claim an action was completed unless it was actually completed. Previous conversation history and caller number do not verify the caller’s identity. Do not disclose private details from prior calls without independently verifying the caller.'],
         abortController,
       })) {
         if (chunk.type === 'TEXT_MESSAGE_CONTENT') result += chunk.delta

@@ -9,9 +9,10 @@ type BridgeOptions = {
   phone: WebSocket
   apiKey: string
   instructions: string
+  history?: { role: 'user' | 'assistant'; content: string }[]
   bufferedEvents?: string[]
   onEvent?: (event: LiveEvent, send: (event: LiveEvent) => boolean) => void | Promise<void>
-  onEnd?: (reason: EndReason) => void
+  onEnd?: (reason: EndReason, result: { transcriptComplete: boolean }) => void | Promise<void>
   fetcher?: typeof fetch
 }
 
@@ -35,6 +36,11 @@ export function startLiveMediaBridge(options: BridgeOptions): () => void {
   let ready = false
   let closing = false
   let closeTimer: ReturnType<typeof setTimeout> | undefined
+  let endReason: EndReason | undefined
+  let finalized = false
+  let receivedSessionClosed = false
+  let callbackFailed = false
+  const callbacks = new Set<Promise<void>>()
   let pendingBytes = 0
   const pending: string[] = []
   const timer = setTimeout(() => finish('provider_error'), START_TIMEOUT_MS)
@@ -42,12 +48,24 @@ export function startLiveMediaBridge(options: BridgeOptions): () => void {
   function closeLive() {
     closing = false
     if (closeTimer) clearTimeout(closeTimer)
-    if (live?.readyState === 1) live.close(1000, 'Call ended')
+    if (finalized) return
+    finalized = true
+    // Keep the upstream socket open while all transcript writes drain.
+    void Promise.allSettled([...callbacks]).then(async results => {
+      try {
+        if (endReason) await options.onEnd?.(endReason, { transcriptComplete: receivedSessionClosed && !callbackFailed && results.every(result => result.status === 'fulfilled') })
+      } catch {
+        // The completion marker is best effort; the reader treats its absence as incomplete.
+      } finally {
+        if (live?.readyState === 1) live.close(1000, 'Call ended')
+      }
+    })
   }
 
   function finish(reason: EndReason) {
     if (ended) return
     ended = true
+    endReason = reason
     clearTimeout(timer)
     pending.length = 0
     if (phone.readyState === 1) phone.close(1000, 'Call ended')
@@ -62,7 +80,22 @@ export function startLiveMediaBridge(options: BridgeOptions): () => void {
     } else {
       closeLive()
     }
-    options.onEnd?.(reason)
+  }
+
+  function dispatchEvent(message: LiveEvent) {
+    if (!options.onEvent) return
+    try {
+      const callback = Promise.resolve(options.onEvent(message, send))
+      callbacks.add(callback)
+      void callback.then(() => callbacks.delete(callback), () => {
+        callbacks.delete(callback)
+        callbackFailed = true
+        finish('provider_error')
+      })
+    } catch {
+      callbackFailed = true
+      finish('provider_error')
+    }
   }
 
   function send(event: LiveEvent): boolean {
@@ -133,12 +166,19 @@ export function startLiveMediaBridge(options: BridgeOptions): () => void {
       socket.addEventListener('message', event => {
         const message = parseEvent(event.data)
         if (closing) {
-          if (message?.type === 'session.closed' || message?.type === 'error' || !message) closeLive()
+          if (message?.type === 'session.input_transcript.delta' || message?.type === 'session.output_transcript.delta') dispatchEvent(message)
+          else if (message?.type === 'session.closed' || message?.type === 'error' || !message) {
+            if (message?.type === 'session.closed') receivedSessionClosed = ['close_requested', 'expired', 'content', 'remote_hangup'].includes(String(message.reason))
+            closeLive()
+          }
           return
         }
         if (ended) return
         if (!message || typeof message.type !== 'string') return finish('provider_error')
-        if (message.type === 'session.closed') return finish('live_closed')
+        if (message.type === 'session.closed') {
+          receivedSessionClosed = ['close_requested', 'expired', 'content', 'remote_hangup'].includes(String(message.reason))
+          return finish('live_closed')
+        }
         if (message.type === 'error') return finish('provider_error')
         if (message.type === 'session.started') {
           if (ready) return finish('provider_error')
@@ -160,19 +200,17 @@ export function startLiveMediaBridge(options: BridgeOptions): () => void {
             return finish('phone_closed')
           }
         }
-        if (options.onEvent) {
-          try {
-            Promise.resolve(options.onEvent(message, send)).catch(() => finish('provider_error'))
-          } catch {
-            finish('provider_error')
-          }
-        }
+        dispatchEvent(message)
       })
       socket.send(JSON.stringify({
         type: 'session.start',
         session: {
           model: 'gpt-live-1',
           instructions: options.instructions,
+          ...(options.history?.length ? { input: options.history.map(item => ({
+            type: 'message', role: item.role,
+            content: [{ type: item.role === 'user' ? 'input_text' : 'output_text', text: item.content }],
+          })) } : {}),
           audio: { format: { type: 'audio/pcmu', rate: 8000 }, output: { voice: 'marin' } },
           delegation: { type: 'client' },
         },

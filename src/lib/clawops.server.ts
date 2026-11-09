@@ -1,29 +1,33 @@
 import '@tanstack/react-start/server-only'
 
 import { env } from 'cloudflare:workers'
-import { generateTranscription } from '@tanstack/ai'
-import { getOpenAiTranscription } from './ai.server'
+import { bindCall, readTranscript, reserveCall } from './call-store.server'
 import type { CallLine } from './chat-tools'
 
-// Outbound calls through ClawOps (https://docs.claw-ops.com): a managed voice agent phones the
-// business, and the call recording is transcribed afterwards so the chat agent can report back.
+// ClawOps provides the phone connection; our VoiceML endpoint runs the voice session.
 
 const HOST = 'https://api.claw-ops.com'
 const API = `${HOST}/v1/accounts`
 const RING_SECONDS = 40
 const ENDED = new Set(['completed', 'no-answer', 'busy', 'rejected', 'canceled', 'failed'])
-// The recording is uploaded a moment after the hang-up, so a missing one is retried briefly.
-const RECORDING_TRIES = 4
-const RECORDING_RETRY_MS = 1500
+const IN_PROGRESS = new Set(['queued', 'ringing', 'in-progress'])
 const MAX_TRANSCRIPT_CHARS = 6000
-// Live events come 200 to a page; a call long enough to need more pages than this is cut off here.
-const MAX_LIVE_EVENT_PAGES = 5
+// ponytail: after 30 seconds without a completed flush, return a clearly incomplete transcript. Longer shutdowns need durable completion tracking.
+const TRANSCRIPT_WAIT_MS = 30_000
 
-export type CallStatus = { state: 'calling' | 'done'; outcome: string }
-export type CallResult = CallStatus & { transcript?: string }
+export type CallStatus = { state: 'calling' | 'done'; outcome: string; transcriptIncomplete?: boolean }
+export type CallResult = (CallStatus | { state: 'unknown'; outcome: 'status-unavailable' }) & { transcript?: string }
 
 export function callsConfigured() {
-  return Boolean(env.CLAWOPS_API_KEY && env.CLAWOPS_ACCOUNT_ID && env.CLAWOPS_FROM_NUMBER && env.CLAWOPS_AGENT_ID)
+  const from = normalizeKoreanNumber(env.CLAWOPS_FROM_NUMBER ?? '')
+  const webhookPhone = normalizeKoreanNumber(env.CLAWOPS_PHONE_NUMBER ?? '')
+  if (!from || from !== webhookPhone || !env.CLAWOPS_API_KEY || !env.CLAWOPS_ACCOUNT_ID || !env.OPENAI_API_KEY || !env.BETTER_AUTH_SECRET || env.BETTER_AUTH_SECRET.length < 32 || !env.DB) return false
+  try {
+    const url = new URL(env.CLAWOPS_WEBHOOK_URL ?? '')
+    return url.protocol === 'https:' && url.pathname === '/api/clawops/voice' && !url.username && !url.password && !url.search && !url.hash
+  } catch {
+    return false
+  }
 }
 
 function sameText(a: string, b: string) {
@@ -50,96 +54,95 @@ export function normalizeKoreanNumber(input: string): string | null {
 async function clawops<T>(path: string, method: 'GET' | 'POST' = 'GET', body?: unknown) {
   const response = await fetch(`${API}/${env.CLAWOPS_ACCOUNT_ID}${path}`, {
     method,
+    redirect: 'manual',
     headers: { authorization: `Bearer ${env.CLAWOPS_API_KEY}`, 'content-type': 'application/json' },
     body: body === undefined ? undefined : JSON.stringify(body),
   })
   return { status: response.status, body: (await response.json().catch(() => ({}))) as T & { code?: string } }
 }
 
-/** Queue a call from the Tokie number; `instruction` tells the voice agent what this call is for. */
-export async function placeCall(to: string, instruction: string): Promise<{ callId: string } | { error: string }> {
-  if (to === env.CLAWOPS_FROM_NUMBER) return { error: 'same-number' }
-  const created = await clawops<{ callId?: string }>('/calls', 'POST', {
-    To: to,
-    From: env.CLAWOPS_FROM_NUMBER,
-    AgentId: env.CLAWOPS_AGENT_ID,
-    CallContext: { Instruction: instruction.slice(0, 4000) },
-    Timeout: RING_SECONDS,
-  })
-  if (created.status !== 201 || !created.body.callId) return { error: created.body.code ?? `http-${created.status}` }
-  return { callId: created.body.callId }
+// Hash provider tool call IDs before storing them in D1.
+async function digest(value: string) {
+  const key = await crypto.subtle.importKey('raw', new TextEncoder().encode(env.BETTER_AUTH_SECRET), { name: 'HMAC', hash: 'SHA-256' }, false, ['sign'])
+  const bytes = new Uint8Array(await crypto.subtle.sign('HMAC', key, new TextEncoder().encode(value)))
+  return Array.from(bytes, (byte) => byte.toString(16).padStart(2, '0')).join('')
+}
+
+/** Queue one call per tool action; an ambiguous response is never automatically retried. */
+export async function placeCall(to: string, instruction: string, actionId: string): Promise<{ callId: string } | { error: string }> {
+  if (!callsConfigured() || !env.BETTER_AUTH_SECRET) return { error: 'unavailable' }
+  if (instruction.length > 4000) return { error: 'instruction-too-long' }
+  if (to === normalizeKoreanNumber(env.CLAWOPS_FROM_NUMBER ?? '')) return { error: 'same-number' }
+  let url: URL
+  try {
+    url = new URL(env.CLAWOPS_WEBHOOK_URL ?? '')
+    if (url.protocol !== 'https:' || url.username || url.password || url.search || url.hash) return { error: 'unavailable' }
+  } catch {
+    return { error: 'unavailable' }
+  }
+  const action = await digest(`tokie-call-action:${actionId}`)
+  const intent = Array.from(crypto.getRandomValues(new Uint8Array(32)), (byte) => byte.toString(16).padStart(2, '0')).join('')
+  try {
+    if (!await reserveCall(env.DB, { intent, actionId: action, to, instruction })) return { error: 'unknown' }
+  } catch {
+    return { error: 'unavailable' }
+  }
+  url.searchParams.set('intent', intent)
+  try {
+    const created = await clawops<{ callId?: string }>('/calls', 'POST', {
+      To: to,
+      From: env.CLAWOPS_FROM_NUMBER,
+      Url: url.toString(),
+      Timeout: RING_SECONDS,
+    })
+    // A missing/malformed result or provider/server error can occur after the call was queued.
+    if (created.status !== 201 || !created.body.callId || !/^[\w-]+$/.test(created.body.callId)) {
+      return { error: [400, 401, 403, 404, 409, 410, 422, 429].includes(created.status) ? 'rejected' : 'unknown' }
+    }
+    const bound = await bindCall(env.DB, { intent, callId: created.body.callId, to })
+    return bound ? { callId: created.body.callId } : { error: 'unknown' }
+  } catch {
+    return { error: 'unknown' }
+  }
 }
 
 /** Whether a call is still going, and how it ended: only "completed" means somebody answered. */
 export async function getCallStatus(callId: string): Promise<CallStatus & { recordingUrl?: string | null }> {
   const call = await clawops<{ status?: string; recordingUrl?: string | null }>(`/calls/${callId}`)
-  const outcome = call.body.status ?? 'unknown'
+  if (call.status !== 200 || typeof call.body?.status !== 'string') throw new Error('ClawOps call status unavailable')
+  const outcome = call.body.status
+  if (!ENDED.has(outcome) && !IN_PROGRESS.has(outcome)) throw new Error('ClawOps call status unavailable')
+  if (outcome === 'completed') {
+    const now = Date.now()
+    const bridge = await env.DB.prepare(`UPDATE live_calls SET provider_completed_at = COALESCE(provider_completed_at, ?)
+      WHERE call_id = ? RETURNING provider_completed_at, bridge_finished_at`).bind(now, callId)
+      .first<{ provider_completed_at: number; bridge_finished_at: number | null }>()
+    if (!bridge) throw new Error('Call reservation unavailable')
+    if (bridge.bridge_finished_at !== null) return { state: 'done', outcome }
+    if (now - bridge.provider_completed_at < TRANSCRIPT_WAIT_MS) return { state: 'calling', outcome }
+    return { state: 'done', outcome, transcriptIncomplete: true }
+  }
   return { state: ENDED.has(outcome) ? 'done' : 'calling', outcome, recordingUrl: call.body.recordingUrl }
 }
 
-type LiveEvent = { id: string; event: string; detail?: { utteranceId?: string; role?: string; text?: string } }
-
-/**
- * What has been said on the call so far, from the voice agent's live transcript events.
- * Empty when the agent was not set up to emit them (see scripts/setup-clawops-agent.mjs) or nobody has spoken yet.
- */
+/** Live transcript lines from our own GPT-Live bridge. */
 export async function getCallLines(callId: string): Promise<CallLine[]> {
-  const lines = new Map<string, CallLine>()
-  let after = ''
-  for (let page = 0; page < MAX_LIVE_EVENT_PAGES; page++) {
-    const events = await clawops<{ data?: LiveEvent[]; hasMore?: boolean }>(`/calls/${callId}/live-events?limit=200${after && `&after=${encodeURIComponent(after)}`}`)
-    for (const { id, event, detail } of events.body.data ?? []) {
-      after = id
-      if ((event !== 'transcript.partial' && event !== 'transcript.final') || !detail?.text) continue
-      const key = detail.utteranceId ?? id
-      // A partial carries the whole utterance so far and the final replaces it, so the latest event wins;
-      // the Map keeps each utterance where it first appeared.
-      lines.set(key, { id: key, role: detail.role === 'agent' ? 'agent' : 'business', text: detail.text, final: event === 'transcript.final' })
-    }
-    if (!events.body.hasMore || !after) break
-  }
-  return [...lines.values()]
+  return readTranscript(env.DB, callId)
 }
 
-// Transcripts already made, so asking about the same call again does not transcribe it twice.
-// Per isolate and best effort; a miss only costs one more transcription.
-const transcripts = new Map<string, string>()
-
-/**
- * Fallback for a call without live transcript events: transcribe the recording with OpenAI
- * (ClawOps' own transcription takes about a minute per call). Korean, without speaker labels.
- */
-async function transcribeCall(callId: string): Promise<string | undefined> {
-  const known = transcripts.get(callId)
-  if (known) return known
-
-  let recording: Response | undefined
-  for (let attempt = 0; attempt < RECORDING_TRIES; attempt++) {
-    if (attempt) await new Promise((resolve) => setTimeout(resolve, RECORDING_RETRY_MS))
-    const response = await fetch(`${API}/${env.CLAWOPS_ACCOUNT_ID}/recordings/${callId}`, { headers: { authorization: `Bearer ${env.CLAWOPS_API_KEY}` } })
-    if (response.ok) {
-      recording = response
-      break
-    }
-  }
-  if (!recording) return undefined
-
-  const audio = new File([await recording.arrayBuffer()], 'call.wav', { type: 'audio/wav' })
-  const { text } = await generateTranscription({ adapter: getOpenAiTranscription(), audio, language: 'ko', threadId: `call-${callId}` })
-  const transcript = text.trim().slice(0, MAX_TRANSCRIPT_CHARS)
-  if (!transcript) return undefined
-  transcripts.set(callId, transcript)
-  return transcript
-}
-
-/** For the chat agent: how the call ended and, if it was answered, what was said. */
+/** For the chat agent: how the call ended and what the live session transcribed. */
 export async function getCallResult(callId: string): Promise<CallResult> {
-  const { state, outcome } = await getCallStatus(callId)
+  let status: CallStatus
+  try {
+    status = await getCallStatus(callId)
+  } catch {
+    return { state: 'unknown', outcome: 'status-unavailable' }
+  }
+  const { state, outcome, transcriptIncomplete } = status
   if (state !== 'done' || outcome !== 'completed') return { state, outcome }
   const lines = await getCallLines(callId)
-  if (!lines.length) return { state, outcome, transcript: await transcribeCall(callId) }
   const transcript = lines.map(({ role, text }) => `${role === 'agent' ? 'Tokie agent' : 'Business'}: ${text}`).join('\n')
-  return { state, outcome, transcript: transcript.slice(0, MAX_TRANSCRIPT_CHARS) }
+  return { state, outcome, transcriptIncomplete, transcript: transcript ? transcript.slice(0, MAX_TRANSCRIPT_CHARS) : undefined }
 }
 
 // Call references handed to the browser are signed, so only calls this app placed can be looked up
@@ -163,9 +166,15 @@ export async function fromCallReference(reference: string): Promise<string | nul
 
 /** GET /api/calls/$call: progress for the chat screen, with what has been said so far. */
 export async function handleCallStatus(reference: string): Promise<Response> {
-  if (!callsConfigured()) return Response.json({ error: 'Calls are not configured.' }, { status: 503 })
+  const headers = { 'Cache-Control': 'no-store' }
+  if (!callsConfigured()) return Response.json({ error: 'Calls are not configured.' }, { status: 503, headers })
   const callId = await fromCallReference(reference)
-  if (!callId) return Response.json({ error: 'Unknown call.' }, { status: 404 })
-  const [{ state, outcome }, lines] = await Promise.all([getCallStatus(callId), getCallLines(callId)])
-  return Response.json({ state, outcome, lines })
+  if (!callId) return Response.json({ error: 'Unknown call.' }, { status: 404, headers })
+  try {
+    const status = await getCallStatus(callId)
+    const lines = await getCallLines(callId)
+    return Response.json({ ...status, lines }, { headers })
+  } catch {
+    return Response.json({ error: 'Call status unavailable.' }, { status: 502, headers })
+  }
 }

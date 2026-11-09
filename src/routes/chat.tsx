@@ -5,8 +5,8 @@ import { TokieChat } from '../components/chat/TokieChat'
 export const Route = createFileRoute('/chat')({
   head: () => ({
     meta: [
-      { title: 'Chat with Tokie — Get a Korean number' },
-      { name: 'description', content: 'Tokie gives you a Korean number, answers the calls in Korean, and tells you everything in your language.' },
+      { title: 'Chat with Tokie — Book in Korea' },
+      { name: 'description', content: 'Chat with Tokie about making bookings in Korea.' },
     ],
     links: [{ rel: 'stylesheet', href: chatCss }],
   }),
