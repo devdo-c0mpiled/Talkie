@@ -92,3 +92,5 @@ npm run build
 ```
 
 `scripts/hotel-workflow-browser-check.js`는 Playwright의 page를 받는 브라우저 검증 함수다. 실제 AI 응답과 D1 저장 결과를 함께 확인한다. 모델 호출 비용이 발생하므로 CI에서는 상태 전이 테스트만 자동 실행한다.
+
+가능 날짜 문의는 `hotel_inquiry(operation=availability)`로 처리한다. 날짜를 정하지 않은 문의에도 현재 숙박 기간 기준으로 조회하며, `fromDate`와 `throughDate`는 체크인 검색 범위, `stayNights`는 숙박 기간이다. 조회만으로 제안 승인 카드나 예약을 만들지 않는다. 고객이 일정을 선택한 뒤 해당 조건을 조회하고 승인을 받는다. 현재 샌드박스의 확인된 숙박 재고는 2026년 12월 5~8일이며, 이 범위 밖은 매진으로 단정하지 않는다.

@@ -1,13 +1,15 @@
 // Executable hotel workflow. No framework, model, network or UI dependencies.
-export type Operation = 'book' | 'change_dates' | 'change_checkout' | 'cancel' | 'luggage'
+export type Operation = 'availability' | 'book' | 'change_dates' | 'change_checkout' | 'cancel' | 'luggage'
 export type Stay = { guestName: string; checkIn: string; checkOut: string; adults: number; rooms: number; roomType: 'twin' | 'double' }
 export type Booking = Stay & { id: string; status: 'confirmed' | 'cancelled'; total: number }
-export type Inquiry = Partial<Stay> & { operation: Operation; bags?: number; dropOff?: string; pickUp?: string }
+export type Inquiry = Partial<Stay> & { operation: Operation; bags?: number; dropOff?: string; pickUp?: string; fromDate?: string; throughDate?: string; stayNights?: number }
+export type AvailableStay = {checkIn:string;checkOut:string;nights:number;roomType:Stay['roomType']}
 export type Offer = { id: string; operation: Operation; stay: Stay; total: number; fee?: number; evidenceKo: string }
 export type Workflow = {
  id: string; mode: 'sandbox'; scenario: string; version: number;
  status: 'inquiry' | 'needs_details' | 'unavailable' | 'awaiting_customer' | 'declined' | 'confirmed' | 'changed' | 'cancelled' | 'information_only';
  booking: Booking | null; draft: Stay; offer: Offer | null; evidenceKo: string | null;
+ availability?: {fromDate:string;throughDate:string;nights:number;roomType:Stay['roomType'];options:AvailableStay[]};
  missing: string[]; audit: { event: string; version: number }[];
  lastCommit: string | null; lastOperation: Operation | null;
 }
@@ -28,7 +30,23 @@ export function inquireHotel(previous: Workflow, input: Inquiry, offerId = crypt
  const continuing = s.lastOperation === input.operation
  s.lastOperation = input.operation
  s.offer = null; s.evidenceKo = null; s.missing = []; s.status = 'inquiry'
- if (!['book','change_dates','change_checkout','cancel','luggage'].includes(input.operation)) throw Error('Unknown hotel operation')
+ if (!['availability','book','change_dates','change_checkout','cancel','luggage'].includes(input.operation)) throw Error('Unknown hotel operation')
+ if (input.operation==='availability') {
+  const fromDate=input.fromDate??'2026-12-05', throughDate=input.throughDate??'2026-12-08'
+  const duration=input.stayNights??nights(s.draft), roomType=input.roomType??s.draft.roomType
+  if(!day(fromDate)||!day(throughDate)||fromDate>throughDate||!Number.isInteger(duration)||duration<1||duration>30||!['twin','double'].includes(roomType)||(input.adults!==undefined&&input.adults!==2)||(input.rooms!==undefined&&input.rooms!==1)) {
+   delete s.availability;s.status='needs_details';s.missing=['valid check-in search dates, positive whole nights, one room and two adults'];return record(s,'invalid_availability_search')
+  }
+  const options:AvailableStay[]=[]
+  for(const checkIn of ['2026-12-05','2026-12-06','2026-12-07']) {
+   const checkOut=new Date(Date.parse(checkIn)+duration*86400000).toISOString().slice(0,10)
+   if(checkIn>=fromDate&&checkIn<=throughDate&&checkOut<='2026-12-08'&&!(roomType==='double'&&checkIn>='2026-12-06'))options.push({checkIn,checkOut,nights:duration,roomType})
+  }
+  s.availability={fromDate,throughDate,nights:duration,roomType,options};s.status='information_only'
+  const listed=options.map(o=>`${o.checkIn} 체크인, ${o.checkOut} 체크아웃`).join('; ')
+  s.evidenceKo=`확인된 숙박 재고 범위는 2026년 12월 5일부터 8일까지입니다. ${roomType==='twin'?'트윈룸':'더블룸'} 1개, 성인 2명, ${duration}박 기준 ${listed?`가능한 일정: ${listed}`:'조회 조건에 맞는 일정은 이 범위에서 확인되지 않았습니다'}. 범위 밖 날짜는 확인되지 않았습니다. 예약은 생성하거나 변경하지 않았습니다.`
+  return record(s,'available_dates_checked')
+ }
  const existing = s.booking?.status === 'confirmed' ? s.booking : null
  if (['change_dates','change_checkout','cancel'].includes(input.operation) && !existing) {
   s.status='needs_details'; s.missing=['active reservation']; return record(s,'missing_reservation')
@@ -42,6 +60,11 @@ export function inquireHotel(previous: Workflow, input: Inquiry, offerId = crypt
   return record(s,'luggage_checked')
  }
  const stay: Stay = { ...(continuing ? s.draft : existing ?? s.draft) }
+ if(input.operation==='book'&&previous.lastOperation==='availability'&&previous.availability&&input.checkIn) {
+  const option=previous.availability.options.find(o=>o.checkIn===input.checkIn&&(!input.roomType||o.roomType===input.roomType))
+  if(option){stay.roomType=option.roomType;if(!input.checkOut)stay.checkOut=option.checkOut}
+ }
+ delete s.availability
  for (const key of ['guestName','checkIn','checkOut','adults','rooms','roomType'] as const) {
   const value = input[key]; if (value !== undefined) Object.assign(stay, {[key]:value})
  }

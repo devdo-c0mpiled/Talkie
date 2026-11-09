@@ -74,3 +74,31 @@ test('choosing an alternative during a date change preserves corrected dates',()
  const twin=inquireHotel(q,{operation:'change_dates',roomType:'twin'});
  assert.equal(twin.offer.stay.checkIn,'2026-12-06');assert.equal(twin.offer.stay.checkOut,'2026-12-08');
 });
+test('available dates can be queried without choosing dates or making a booking',()=>{
+ const q=inquireHotel(make(),{operation:'availability'});
+ assert.equal(q.status,'information_only');assert.equal(q.offer,null);assert.equal(q.booking,null);
+ assert.deepEqual(q.availability.options.map(x=>[x.checkIn,x.checkOut]),[['2026-12-05','2026-12-07'],['2026-12-06','2026-12-08']]);
+});
+test('availability respects duration, room type and search window',()=>{
+ const q=inquireHotel(make(),{operation:'availability',roomType:'double',stayNights:2});
+ assert.equal(q.availability.options.length,1);assert.equal(q.availability.options[0].checkIn,'2026-12-05');
+ const filtered=inquireHotel(make(),{operation:'availability',fromDate:'2026-12-06',throughDate:'2026-12-06',stayNights:1});
+ assert.deepEqual(filtered.availability.options.map(x=>x.checkOut),['2026-12-07']);
+});
+test('outside known inventory does not invent dates or claim full occupancy',()=>{
+ const q=inquireHotel(make(),{operation:'availability',fromDate:'2027-01-01',throughDate:'2027-01-31'});
+ assert.equal(q.availability.options.length,0);assert.match(q.evidenceKo,/범위 밖 날짜는 확인되지/);assert.equal(q.offer,null);
+});
+test('availability never mutates an existing reservation',()=>{
+ const initial=make('dates');const q=inquireHotel(initial,{operation:'availability',stayNights:1});
+ assert.deepEqual(q.booking,initial.booking);assert.equal(q.offer,null);
+});
+test('selected availability option becomes an offer, not an automatic booking',()=>{
+ const q=inquireHotel(make(),{operation:'availability'});
+ const chosen=inquireHotel(q,{operation:'book',checkIn:'2026-12-06'});
+ assert.equal(chosen.offer.stay.checkOut,'2026-12-08');assert.equal(chosen.booking,null);
+ assert.equal(approved(chosen).booking.checkOut,'2026-12-08');
+});
+for(const patch of [{stayNights:0},{stayNights:1.5},{fromDate:'2026-02-30'},{fromDate:'2026-12-08',throughDate:'2026-12-05'}])test(`invalid availability query ${JSON.stringify(patch)}`,()=>{
+ const q=inquireHotel(make(),{operation:'availability',...patch});assert.equal(q.status,'needs_details');assert.equal(q.offer,null);
+});
