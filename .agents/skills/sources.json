@@ -1,0 +1,30 @@
+{
+  "schemaVersion": 1,
+  "skills": [
+    {
+      "name": "humanizer",
+      "repository": "https://github.com/blader/humanizer",
+      "commit": "0ef9fe5bc3572734fd3ae6c448fe00a30cd5dcf0",
+      "license": "MIT",
+      "files": {
+        "SKILL.md": "0612f1dfb1672b0ea9b97e139bf1f06cabe98d8b27424fe8ff01e1fb4cc99cad",
+        "LICENSE": "4ac4810254ab36d45419141aeb8e69bf50652cfafe5b2dab947d06d44e5cbf96"
+      }
+    },
+    {
+      "name": "humanizer-kr",
+      "repository": "https://github.com/monologg/humanizer-kr",
+      "commit": "ba6b8b5ef08e36c88b6ce25d8ba488834cadf7be",
+      "license": "MIT",
+      "files": {
+        "SKILL.md": "d490f065a48b8b03622cbdb6eed8fc2864134df68f496aa525ae962b17bf603d",
+        "LICENSE": "93d3c921e4a16b9d5ac22dcf984188ce20a4466f83baeeddf83843275c733b35",
+        "references/communication.md": "8bb9c5ca2e49c554565c2f5e2d7030212468dedef811047ea4af56359cea3f41",
+        "references/punctuation.md": "9dd72cf3362acbbd96436ce0e9acc613e5a9bf2560b9de6ba59b614256e9fc25",
+        "references/structure.md": "f8af1c73b28bd91e5384d1b1a157ba27d5cb33cb293aef4c1881f4b0ae8914aa",
+        "references/translation.md": "8ecff3fac4403565efd7b11244069428610f6d206d6200fca6235c26a22f3b8a",
+        "references/vocabulary.md": "13968c6b7cb06485afb8d9d09b9fe473256dc4fed046e68e084ac2c55992efab"
+      }
+    }
+  ]
+}
