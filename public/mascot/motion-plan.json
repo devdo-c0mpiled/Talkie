@@ -1,0 +1,117 @@
+{
+  "reference": "reference.png",
+  "decision": "사용자 승인 01 2D 토끼. 크림색 몸, 갈색 선, 살구색 볼, 접힌 귀, 민트 목수건 유지.",
+  "context": "Talkie 음성 서비스 비교 PoC. 상담 예약, 대리 전화, 변경·취소 시뮬레이션. 실제 예약 DB·업무 실행 도구 없음.",
+  "source_files": [
+    "src/types.ts",
+    "src/voice.ts",
+    "server/config.mjs"
+  ],
+  "p0": [
+    {
+      "state": "idle",
+      "motion": "느린 호흡과 간헐적 눈 깜빡임",
+      "trigger": "통화 전·종료 후",
+      "asset": "row 0 ready"
+    },
+    {
+      "state": "listening",
+      "motion": "입 닫기, 한쪽 귀 기울임, 작은 고개 반응",
+      "trigger": "사용자 발화 감지 또는 서비스 listening 모드",
+      "asset": "row 1 ready"
+    },
+    {
+      "state": "speaking",
+      "motion": "음성 출력과 함께 입 개폐, 절제된 앞발 제스처",
+      "trigger": "AI 오디오 실제 재생·출력 음량. 전사 텍스트 도착만으로 시작하지 않음",
+      "asset": "row 2 ready; volume cadence only, not phoneme lip sync"
+    }
+  ],
+  "p1": [
+    {
+      "state": "awaiting_confirmation",
+      "motion": "작게 고개를 기울이고 사용자 응답 기다림",
+      "trigger": "구조화된 최종 확인 요청 상태. 모델 대사에서 임의 추론 금지"
+    },
+    {
+      "state": "booking_success",
+      "motion": "한 번 고개 끄덕이거나 작은 기쁨 동작",
+      "trigger": "업무 도구가 실제 확정 결과를 반환했을 때만. 현재 PoC 자동 연결 금지"
+    },
+    {
+      "state": "needs_action",
+      "motion": "열린 앞발로 안내하고 기다림",
+      "trigger": "대체 시간 제안, 사용자 재확인, 상담원 인계 등의 구조화된 상태"
+    }
+  ],
+  "transition_rules": [
+    "끼어들기 때 말하기 입 모션 즉시 종료 후 듣기로 전환. 별도의 긴 모션은 만들지 않는다.",
+    "음소거는 상태 표시와 마이크 입력 반응 중지로 처리. AI 출력 중이면 말하기 모션은 계속한다.",
+    "연결 종료와 예약 성공을 구분한다. 오류 뒤 성공·인사 모션 자동 재생 금지.",
+    "캐릭터 클릭 효과는 실제 통화 상태를 덮어쓰지 않는다. 통합 시 비활성화하거나 별도 레이어로 처리한다.",
+    "상태 전환은 루프 완료를 기다리지 않는다. 프레임 간 발 기준선과 몸 크기를 고정한다.",
+    "입 모션은 현재 4프레임 출력량 반응이며 음소 단위 립싱크가 아니다.",
+    "서비스 세 종류는 같은 상태 규약과 출력 음량 기준을 사용한다.",
+    "오류 원인은 텍스트로 제공하고 캐릭터 표정만으로 전달하지 않는다.",
+    "모션 줄이기 설정에서는 해당 상태의 정지 프레임을 사용한다."
+  ],
+  "integration": {
+    "preview": "http://127.0.0.1:4318/mascot/",
+    "app_preview_path": "/mascot/",
+    "import": "/mascot/talkie-mascot.js",
+    "element": "<talkie-mascot state=\"idle\"></talkie-mascot>",
+    "event": "window.dispatchEvent(new CustomEvent('talkie:voice-state', { detail: { state: 'speaking', level: 0.5 } }))",
+    "available_states": [
+      "idle",
+      "listening",
+      "speaking",
+      "greeting"
+    ],
+    "pending": "실제 통화 이벤트 연결은 미검증. 연결 중·오류는 별도 모션을 제작하지 않고 상태 문구로 표시."
+  },
+  "reuse_optional": [
+    {
+      "state": "greeting",
+      "motion": "짧게 한 번 손 흔들기",
+      "trigger": "연결 후 첫 인사, 캐릭터 클릭. 예약 성공과 무관",
+      "asset": "row 3 ready"
+    }
+  ],
+  "deferred_art": [
+    {
+      "state": "connecting",
+      "motion": "귀를 세우고 기다림. 반복 점프 금지",
+      "trigger": "phase connecting",
+      "asset": "pending"
+    },
+    {
+      "state": "thinking",
+      "motion": "입 닫고 시선을 살짝 옮김, 작은 귀 움직임",
+      "trigger": "사용자 발화 종료 후 응답 대기. 실제 처리 이벤트가 없으면 추정 상태로 구분",
+      "asset": "pending"
+    },
+    {
+      "state": "error",
+      "motion": "귀가 약간 내려가고 차분히 멈춤",
+      "trigger": "권한 거부·연결 실패·통화 오류",
+      "asset": "pending"
+    }
+  ],
+  "hackathon_scope": "필수 모션 3종과 기존 인사 재사용. 추가 이미지 생성 없이 실제 출력 음량·끼어들기·종료 상태 연결을 우선한다. 연결·오류·음소거는 텍스트와 기존 프레임으로 표시한다.",
+  "interpolation": {
+    "method": "양방향 optical flow로 원본 프레임 사이 변형을 보간. WebGL2 미지원 시 crossfade.",
+    "source_art": "sprites.png 유지",
+    "listening_greeting": "형태가 가까운 0·1 프레임 왕복으로 겹침 완화",
+    "timing": "누적 시간 기반 재생. 속도·음량 변화 시 위상 유지. 일시정지 자세 보존.",
+    "transition_ms": {
+      "listening": 90,
+      "other": 160
+    },
+    "runtime_assets": [
+      "motion-renderer.js",
+      "flow.bin",
+      "flow.json"
+    ],
+    "flow_build": "uv run --with opencv-python-headless --with numpy scripts/build-mascot-flow.py"
+  }
+}
