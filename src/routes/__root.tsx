@@ -26,7 +26,7 @@ export const Route = createRootRoute({
 })
 
 // Pages that bring their own English chrome; every other page is a Korean shop page inside the shared shell.
-const standalonePaths = ['/', '/signup', '/chat']
+const standalonePaths = ['/', '/signup', '/chat', '/test']
 
 function Root() {
   const isStandalone = useLocation({ select: (location) => standalonePaths.includes(location.pathname) })
