@@ -1,5 +1,6 @@
 import { toolDefinition } from '@tanstack/ai'
 import { z } from 'zod'
+import {callResultSchema} from './call-result'
 
 // Tool definitions shared by the chat endpoint (which runs them) and the chat screen (which renders
 // their results and asks the traveler to approve a call).
@@ -16,7 +17,8 @@ const callRequest = z.object({
   phoneNumber: z.string().meta({ description: 'The Korean phone number the traveler gave, e.g. 02-555-0193. Never guess or look up a number.' }),
   businessName: z.string().meta({ description: 'Name of the business as the traveler gave it, or a short description such as "the clinic"' }),
   purpose: z.string().meta({ description: 'One short sentence in the traveler’s language saying what the call is for. Shown to the traveler before they approve.' }),
-  instructionsKo: z.string().meta({ description: 'Instructions in Korean for the voice agent that makes the call: what to ask or book, with every detail it needs (date, time, party size, name to book under, questions to ask).' }),
+  conversationMode: z.enum(['business_call', 'hotel_roleplay']).meta({ description: 'hotel_roleplay when the user asks the agent to act as hotel staff at their supplied number; business_call when calling actual staff on their behalf. Preserve this mode on subsequent call-first requests.' }),
+  instructionsKo: z.string().meta({ description: 'Instructions in Korean for the voice agent that makes the call: the purpose, known details, requested conversation role and questions to ask. Dates, guest count, room type and booking name may be unknown; never invent them or require them before an inquiry call.' }),
 })
 export type CallRequest = z.infer<typeof callRequest>
 
@@ -48,6 +50,8 @@ export const getCallResultDef = toolDefinition({
     outcome: z.string(),
     /** Korean. Lines are labelled "Tokie agent" and "Business" when the live transcript is available; otherwise unlabelled, with the agent speaking first. */
     transcript: z.string().optional(),
+    reservation: callResultSchema.optional(),
+    conversationMode: z.enum(['business_call','hotel_roleplay']).optional(),
     /** The page prepared for this call. The app shows a link to it under the reply. */
     result: z
       .object({

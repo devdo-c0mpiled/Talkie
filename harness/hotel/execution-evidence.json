@@ -1,0 +1,133 @@
+{
+  "date": "2026-11-09",
+  "mode": "sandbox",
+  "modelTested": true,
+  "databaseTested": true,
+  "telephonyTested": false,
+  "scenarios": [
+    {
+      "scenario": "booking",
+      "status": "confirmed",
+      "booking": {
+        "guestName": "Allen",
+        "checkIn": "2026-12-05",
+        "checkOut": "2026-12-07",
+        "adults": 2,
+        "rooms": 1,
+        "roomType": "twin",
+        "total": 280000,
+        "status": "confirmed"
+      },
+      "audit": [
+        {
+          "event": "hotel_offer_received",
+          "version": 1
+        },
+        {
+          "event": "customer_approved_and_sandbox_saved",
+          "version": 2
+        }
+      ],
+      "reply": "Your booking is confirmed: one twin room for two adults, December 5–7, 2026. The total is ₩280,000."
+    },
+    {
+      "scenario": "dates",
+      "status": "changed",
+      "booking": {
+        "guestName": "Allen",
+        "checkIn": "2026-12-06",
+        "checkOut": "2026-12-08",
+        "adults": 2,
+        "rooms": 1,
+        "roomType": "twin",
+        "status": "confirmed",
+        "total": 280000
+      },
+      "audit": [
+        {
+          "event": "hotel_offer_received",
+          "version": 1
+        },
+        {
+          "event": "customer_approved_and_sandbox_saved",
+          "version": 2
+        }
+      ],
+      "reply": "Your reservation change is confirmed: December 6–8, 2026, for two nights in one twin room for two adults. The total is ₩280,000."
+    },
+    {
+      "scenario": "checkout",
+      "status": "changed",
+      "booking": {
+        "guestName": "Allen",
+        "checkIn": "2026-12-05",
+        "checkOut": "2026-12-08",
+        "adults": 2,
+        "rooms": 1,
+        "roomType": "twin",
+        "status": "confirmed",
+        "total": 420000
+      },
+      "audit": [
+        {
+          "event": "hotel_offer_received",
+          "version": 1
+        },
+        {
+          "event": "customer_approved_and_sandbox_saved",
+          "version": 2
+        }
+      ],
+      "reply": "Your booking has been changed and confirmed for December 5–8, 2026. The total is ₩420,000."
+    },
+    {
+      "scenario": "cancel",
+      "status": "cancelled",
+      "booking": {
+        "guestName": "Allen",
+        "checkIn": "2026-12-05",
+        "checkOut": "2026-12-07",
+        "adults": 2,
+        "rooms": 1,
+        "roomType": "twin",
+        "status": "cancelled",
+        "total": 280000
+      },
+      "audit": [
+        {
+          "event": "hotel_offer_received",
+          "version": 1
+        },
+        {
+          "event": "customer_approved_and_sandbox_saved",
+          "version": 2
+        }
+      ],
+      "reply": "Your December 5–7 reservation has been cancelled."
+    },
+    {
+      "scenario": "luggage",
+      "status": "information_only",
+      "evidence": "가방 2개, 11:00부터 18:00까지 보관 문의입니다. 투숙객 보관료는 없지만 당일 공간 확인이 필요합니다. 보관 확정은 아닙니다.",
+      "reply": "The hotel says storage for two suitcases from 11 a.m. to 6 p.m. is free for guests, but it depends on available space that day and isn’t guaranteed."
+    },
+    {
+      "scenario": "alternative",
+      "status": "declined",
+      "audit": [
+        {
+          "event": "alternative_offered",
+          "version": 1
+        },
+        {
+          "event": "hotel_offer_received",
+          "version": 2
+        },
+        {
+          "event": "customer_declined",
+          "version": 3
+        }
+      ]
+    }
+  ]
+}

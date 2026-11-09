@@ -5,7 +5,7 @@ import { chat } from '@tanstack/ai'
 import { z } from 'zod'
 import { getOpenAiChat } from './ai.server'
 import type { CallResult, CallResultLine } from './call-result'
-import { formatClock } from './call-result'
+import { formatClock, formatStayDate } from './call-result'
 import { fetchCallRecording, getCallAnsweredAt } from './clawops.server'
 import type { CallReport } from './clawops.server'
 
@@ -76,6 +76,22 @@ export async function loadCallResult(id: string): Promise<{ result: CallResult; 
   return row ? { result: JSON.parse(row.data) as CallResult, callId: row.call_id } : null
 }
 
+function reconcileReservation(page:CallResult,report:CallReport):CallResult {
+  const r=report.reservation
+  if(!r)return page
+  const ko=page.language.toLowerCase().startsWith('ko')
+  const status=r.status==='confirmed'||r.status==='changed'?'confirmed':r.status==='requested'?'pending':r.status==='declined'?'declined':'none'
+  const labels={confirmed:['예약이 확정되었습니다.','Your reservation is confirmed.'],changed:['예약이 변경되었습니다.','Your reservation was updated.'],cancelled:['예약이 취소되었습니다.','Your reservation was cancelled.'],requested:['예약 요청이 접수되었습니다. 아직 확정되지 않았습니다.','Your reservation request was received; it is not confirmed.'],inquiry:['예약 문의 내용입니다.','Reservation inquiry.'],declined:['예약 요청이 거절되었습니다.','The reservation request was declined.'],unknown:['예약 결과가 확인되지 않았습니다.','The reservation outcome is unconfirmed.']}
+  const date=(value:string|null)=>ko?formatStayDate(value):value??'—'
+  const duration=r.nights?ko?`${r.nights}박 ${r.nights+1}일`:`${r.nights} nights, ${r.nights+1} days`:r.durationText??''
+  return {...page,conversationMode:report.conversationMode,reservation:r,status,headline:labels[r.status][ko?0:1],
+    when:r.checkIn?`${date(r.checkIn)} → ${date(r.checkOut)}${duration?` · ${duration}`:''}`:page.when,
+    who:r.guestName??'',what:[r.roomType,r.guests?`${r.guests}${ko?'명':' guests'}`:''].filter(Boolean).join(' · ')||page.what,
+    startsAt:page.startsAt&&r.checkIn&&page.startsAt.startsWith(r.checkIn)?page.startsAt:'',
+    sources:{...page.sources,who:r.guestName?page.sources.who:''},
+  }
+}
+
 /**
  * The result page for an answered call, made on first use and stored: the booking details a model
  * reads out of the transcript, plus the transcript itself in Korean and in the traveler's language.
@@ -84,7 +100,11 @@ export async function loadCallResult(id: string): Promise<{ result: CallResult; 
 export async function prepareCallResult(callId: string, report: CallReport, business: string, language: string): Promise<CallResult | null> {
   if (report.outcome !== 'completed' || !report.lines.length) return null
   const [existing, answeredAt] = await Promise.all([findByCall(callId), getCallAnsweredAt(callId)])
-  if (existing) return existing
+  if (existing) {
+    const reconciled=reconcileReservation(existing,report)
+    await env.DB.prepare('UPDATE call_results SET data=? WHERE call_id=?').bind(JSON.stringify(reconciled),callId).run()
+    return reconciled
+  }
 
   const lines = report.lines.map(({ id, role, text, startedAt }): CallResultLine => ({
     id,
@@ -100,7 +120,7 @@ export async function prepareCallResult(callId: string, report: CallReport, busi
   const translating = translateLines(callId, lines.map(({ text }) => text), language).catch(() => [])
   const summary = await chat({
     adapter: getOpenAiChat(MODEL),
-    systemPrompts: [summaryPrompt(language, today)],
+    systemPrompts: [summaryPrompt(language, today),`Conversation mode: ${report.conversationMode??'business_call'}. The authoritative reservation state is ${JSON.stringify(report.reservation??null)}. Follow this state over stale transcript details. In hotel_roleplay the remote speaker is the customer, not hotel staff; never label a roleplay request as an actual hotel confirmation. Omit unverified guest names. For Korean output omit the year and include the corrected date range and nights/days.`],
     messages: [{ role: 'user', content: `Business: ${business}\n\nTranscript (line id, time into the call, speaker):\n${transcript}` }],
     threadId: `call-result-${callId}`,
     outputSchema: summarySchema,
@@ -133,8 +153,8 @@ export async function prepareCallResult(callId: string, report: CallReport, busi
   }
 
   // Two lookups of the same call can race; the first one stored wins and both return it.
-  await env.DB.prepare('INSERT INTO call_results (id, call_id, created_at, data) VALUES (?, ?, ?, ?) ON CONFLICT(call_id) DO NOTHING').bind(result.id, callId, Date.now(), JSON.stringify(result)).run()
-  return (await findByCall(callId)) ?? result
+  await env.DB.prepare('INSERT INTO call_results (id, call_id, created_at, data) VALUES (?, ?, ?, ?) ON CONFLICT(call_id) DO NOTHING').bind(result.id, callId, Date.now(), JSON.stringify(reconcileReservation(result,report))).run()
+  return (await findByCall(callId)) ?? reconcileReservation(result,report)
 }
 
 /** GET /api/b/$id/recording: the call's recording, for anyone who has the page's address. */

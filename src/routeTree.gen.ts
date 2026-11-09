@@ -15,7 +15,10 @@ import { Route as AdminRouteImport } from './routes/admin'
 import { Route as ChatRouteImport } from './routes/chat'
 import { Route as LoginRouteImport } from './routes/login'
 import { Route as SignupRouteImport } from './routes/signup'
+import { Route as TestRouteImport } from './routes/test'
 import { Route as ApiChatRouteImport } from './routes/api.chat'
+import { Route as ApiHotelChatRouteImport } from './routes/api.hotel-chat'
+import { Route as ApiHotelWorkflowRouteImport } from './routes/api.hotel-workflow'
 import { Route as BIdRouteImport } from './routes/b.$id'
 import { Route as ApiAuthSplatRouteImport } from './routes/api.auth.$'
 import { Route as ApiCallsCallRouteImport } from './routes/api.calls.$call'
@@ -51,9 +54,24 @@ const SignupRoute = SignupRouteImport.update({
   path: '/signup',
   getParentRoute: () => rootRouteImport,
 } as any)
+const TestRoute = TestRouteImport.update({
+  id: '/test',
+  path: '/test',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiChatRoute = ApiChatRouteImport.update({
   id: '/api/chat',
   path: '/api/chat',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiHotelChatRoute = ApiHotelChatRouteImport.update({
+  id: '/api/hotel-chat',
+  path: '/api/hotel-chat',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiHotelWorkflowRoute = ApiHotelWorkflowRouteImport.update({
+  id: '/api/hotel-workflow',
+  path: '/api/hotel-workflow',
   getParentRoute: () => rootRouteImport,
 } as any)
 const BIdRoute = BIdRouteImport.update({
@@ -84,7 +102,10 @@ export interface FileRoutesByFullPath {
   '/chat': typeof ChatRoute
   '/login': typeof LoginRoute
   '/signup': typeof SignupRoute
+  '/test': typeof TestRoute
   '/api/chat': typeof ApiChatRoute
+  '/api/hotel-chat': typeof ApiHotelChatRoute
+  '/api/hotel-workflow': typeof ApiHotelWorkflowRoute
   '/b/$id': typeof BIdRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
   '/api/calls/$call': typeof ApiCallsCallRoute
@@ -97,7 +118,10 @@ export interface FileRoutesByTo {
   '/chat': typeof ChatRoute
   '/login': typeof LoginRoute
   '/signup': typeof SignupRoute
+  '/test': typeof TestRoute
   '/api/chat': typeof ApiChatRoute
+  '/api/hotel-chat': typeof ApiHotelChatRoute
+  '/api/hotel-workflow': typeof ApiHotelWorkflowRoute
   '/b/$id': typeof BIdRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
   '/api/calls/$call': typeof ApiCallsCallRoute
@@ -111,7 +135,10 @@ export interface FileRoutesById {
   '/chat': typeof ChatRoute
   '/login': typeof LoginRoute
   '/signup': typeof SignupRoute
+  '/test': typeof TestRoute
   '/api/chat': typeof ApiChatRoute
+  '/api/hotel-chat': typeof ApiHotelChatRoute
+  '/api/hotel-workflow': typeof ApiHotelWorkflowRoute
   '/b/$id': typeof BIdRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
   '/api/calls/$call': typeof ApiCallsCallRoute
@@ -126,7 +153,10 @@ export interface FileRouteTypes {
     | '/chat'
     | '/login'
     | '/signup'
+    | '/test'
     | '/api/chat'
+    | '/api/hotel-chat'
+    | '/api/hotel-workflow'
     | '/b/$id'
     | '/api/auth/$'
     | '/api/calls/$call'
@@ -139,7 +169,10 @@ export interface FileRouteTypes {
     | '/chat'
     | '/login'
     | '/signup'
+    | '/test'
     | '/api/chat'
+    | '/api/hotel-chat'
+    | '/api/hotel-workflow'
     | '/b/$id'
     | '/api/auth/$'
     | '/api/calls/$call'
@@ -152,7 +185,10 @@ export interface FileRouteTypes {
     | '/chat'
     | '/login'
     | '/signup'
+    | '/test'
     | '/api/chat'
+    | '/api/hotel-chat'
+    | '/api/hotel-workflow'
     | '/b/$id'
     | '/api/auth/$'
     | '/api/calls/$call'
@@ -166,7 +202,10 @@ export interface RootRouteChildren {
   ChatRoute: typeof ChatRoute
   LoginRoute: typeof LoginRoute
   SignupRoute: typeof SignupRoute
+  TestRoute: typeof TestRoute
   ApiChatRoute: typeof ApiChatRoute
+  ApiHotelChatRoute: typeof ApiHotelChatRoute
+  ApiHotelWorkflowRoute: typeof ApiHotelWorkflowRoute
   BIdRoute: typeof BIdRoute
   ApiAuthSplatRoute: typeof ApiAuthSplatRoute
   ApiCallsCallRoute: typeof ApiCallsCallRoute
@@ -217,11 +256,32 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof SignupRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/test': {
+      id: '/test'
+      path: '/test'
+      fullPath: '/test'
+      preLoaderRoute: typeof TestRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/chat': {
       id: '/api/chat'
       path: '/api/chat'
       fullPath: '/api/chat'
       preLoaderRoute: typeof ApiChatRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/hotel-chat': {
+      id: '/api/hotel-chat'
+      path: '/api/hotel-chat'
+      fullPath: '/api/hotel-chat'
+      preLoaderRoute: typeof ApiHotelChatRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/hotel-workflow': {
+      id: '/api/hotel-workflow'
+      path: '/api/hotel-workflow'
+      fullPath: '/api/hotel-workflow'
+      preLoaderRoute: typeof ApiHotelWorkflowRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/b/$id': {
@@ -262,7 +322,10 @@ const rootRouteChildren: RootRouteChildren = {
   ChatRoute: ChatRoute,
   LoginRoute: LoginRoute,
   SignupRoute: SignupRoute,
+  TestRoute: TestRoute,
   ApiChatRoute: ApiChatRoute,
+  ApiHotelChatRoute: ApiHotelChatRoute,
+  ApiHotelWorkflowRoute: ApiHotelWorkflowRoute,
   BIdRoute: BIdRoute,
   ApiAuthSplatRoute: ApiAuthSplatRoute,
   ApiCallsCallRoute: ApiCallsCallRoute,

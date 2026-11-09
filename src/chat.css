@@ -147,3 +147,15 @@
   .ch-toast { transform: translate(-50%, 0); animation: none; }
   .ch-card-actions button, .ch-quick button { transition: none; }
 }
+
+.ch-rehearsal { flex: none; max-height: 38dvh; overflow: auto; padding: 10px 16px; border-bottom: 1px solid var(--lp-border); background: #fff; font-size: 13px; line-height: 1.5; }
+.ch-rehearsal summary { cursor: pointer; font-weight: 700; }
+.ch-rehearsal label { display: inline-flex; gap: 6px; align-items: center; margin: 6px 10px 6px 0; }
+.ch-rehearsal select { max-width: 190px; padding: 5px; border: 1px solid var(--lp-border); border-radius: 6px; }
+.ch-rehearsal p { margin: 6px 0; }
+.ch-rehearsal button:disabled { opacity: .5; }
+
+.ch-script { margin-top: 10px; }
+.ch-script ol { margin: 8px 0; padding-left: 22px; }
+.ch-script li { margin-bottom: 14px; }
+.ch-script button { min-height: 36px; padding: 6px 12px; border: 1px solid var(--lp-border); border-radius: 8px; color: var(--lp-teal-deep); }
