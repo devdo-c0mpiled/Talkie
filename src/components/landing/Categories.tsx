@@ -24,15 +24,15 @@ export function Categories() {
     <section id="categories" className="lp-categories">
       <div className="lp-container">
         <div className="lp-categories-panel">
-          <div className="lp-categories-copy">
+          <div className="lp-categories-copy lp-reveal">
             <h2>Plastic surgery, skin, and beauty. All in one place.</h2>
             <p className="lp-body">Search clinics that speak your language, from dermatology to hair and nail salons.</p>
           </div>
           <div className="lp-categories-list">
             <ul className="lp-category-grid">
-              {categories.map(({ label, icon }) => (
+              {categories.map(({ label, icon }, index) => (
                 <li key={label}>
-                  <a className="lp-category" href="#clinics">
+                  <a className={`lp-category lp-pop lp-pop--${(index % 4) + 1}`} href="#clinics">
                     <span className="lp-category-icon"><Icon src={icon} size={20} /></span>
                     {label}
                   </a>
