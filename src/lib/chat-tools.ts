@@ -36,35 +36,33 @@ export type CallPlaced = z.infer<typeof callBusinessDef.outputSchema>
 
 export const getCallResultDef = toolDefinition({
   name: 'get_call_result',
-  description: 'Get what happened on a call placed with call_business: whether it is over, how it ended and, if someone answered, what was said.',
-  inputSchema: z.object({ call: z.string().meta({ description: 'The call reference returned by call_business' }) }),
+  description: 'Get what happened on a call placed with call_business: whether it is over, how it ended and, if someone answered, what was said. For an answered call it also prepares a page with the booking details and the call, which the app links to.',
+  inputSchema: z.object({
+    call: z.string().meta({ description: 'The call reference returned by call_business' }),
+    businessName: z.string().meta({ description: 'Name of the business that was called, as used in call_business' }),
+    language: z.string().meta({ description: 'BCP 47 tag of the language the traveler writes in, e.g. "en", "ja", "zh-Hans", "th". The page is written in it.' }),
+  }),
   outputSchema: z.object({
     state: z.enum(['calling', 'done', 'unknown']),
     /** How the call ended: completed (it connected), no-answer, busy, rejected, canceled or failed. */
     outcome: z.string(),
     /** Korean. Lines are labelled "Tokie agent" and "Business" when the live transcript is available; otherwise unlabelled, with the agent speaking first. */
     transcript: z.string().optional(),
+    /** The page prepared for this call. The app shows a link to it under the reply. */
+    result: z
+      .object({
+        id: z.string(),
+        status: z.enum(['confirmed', 'pending', 'declined', 'none']),
+        business: z.string(),
+        headline: z.string(),
+        when: z.string(),
+      })
+      .optional(),
   }),
 })
 
-// Every field is required so the schema stays valid for strict tool calling; unknown details are empty strings.
-const booking = z.object({
-  status: z.enum(['confirmed', 'pending']).meta({ description: 'confirmed: the business agreed to the booking on the call. pending: the booking still waits for the business to confirm.' }),
-  when: z.string().meta({ description: 'Date and time of the booking in the traveler’s language, e.g. "Fri, Nov 20 · 3:00 PM". Empty if it was not said.' }),
-  where: z.string().meta({ description: 'Name of the business, with the area if known. Empty if unknown.' }),
-  note: z.string().meta({ description: 'One short thing the traveler should know or do, in their language. Empty if there is nothing.' }),
-})
-export type Booking = z.infer<typeof booking>
-
-export const showBookingDef = toolDefinition({
-  name: 'show_booking',
-  description: 'Show the traveler a card with the booking a call ended in. Only for a booking the call transcript shows was confirmed or is waiting for confirmation.',
-  inputSchema: booking,
-  outputSchema: z.object({ shown: z.boolean() }),
-})
-
 /** One thing said on a call, as shown live in the chat. `final` is false while the speaker is still mid-sentence. */
-export type CallLine = { id: string; role: 'agent' | 'business'; text: string; final: boolean }
+export type CallLine = { id: string; role: 'agent' | 'business'; text: string; final: boolean; /** When the line began, in ms since the epoch. */ startedAt?: number }
 
 /** Prefix of the hidden message the chat screen sends when a call has ended, followed by the call reference. */
 export const CALL_ENDED_MARKER = '[call-ended]'

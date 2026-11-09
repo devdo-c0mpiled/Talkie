@@ -20,7 +20,8 @@ const MAX_TRANSCRIPT_CHARS = 6000
 const MAX_LIVE_EVENT_PAGES = 5
 
 export type CallStatus = { state: 'calling' | 'done'; outcome: string }
-export type CallResult = CallStatus & { transcript?: string }
+/** A finished call as the chat agent and the booking page need it. `lines` is empty when the agent emitted no live transcript. */
+export type CallReport = CallStatus & { to?: string; endedAt?: string; hasRecording: boolean; lines: CallLine[]; transcript?: string }
 
 export function callsConfigured() {
   return Boolean(env.CLAWOPS_API_KEY && env.CLAWOPS_ACCOUNT_ID && env.CLAWOPS_FROM_NUMBER && env.CLAWOPS_AGENT_ID)
@@ -71,13 +72,27 @@ export async function placeCall(to: string, instruction: string): Promise<{ call
 }
 
 /** Whether a call is still going, and how it ended: only "completed" means somebody answered. */
-export async function getCallStatus(callId: string): Promise<CallStatus & { recordingUrl?: string | null }> {
-  const call = await clawops<{ status?: string; recordingUrl?: string | null }>(`/calls/${callId}`)
+export async function getCallStatus(callId: string): Promise<CallStatus & { to?: string; endedAt?: string; hasRecording: boolean }> {
+  const call = await clawops<{ status?: string; to?: string; dateUpdated?: string | null; recordingUrl?: string | null }>(`/calls/${callId}`)
   const outcome = call.body.status ?? 'unknown'
-  return { state: ENDED.has(outcome) ? 'done' : 'calling', outcome, recordingUrl: call.body.recordingUrl }
+  const ended = ENDED.has(outcome)
+  return { state: ended ? 'done' : 'calling', outcome, to: call.body.to, endedAt: ended ? call.body.dateUpdated ?? undefined : undefined, hasRecording: Boolean(call.body.recordingUrl) }
 }
 
-type LiveEvent = { id: string; event: string; detail?: { utteranceId?: string; role?: string; text?: string } }
+/** When the call was picked up, in ms since the epoch: the zero point of its recording. */
+export async function getCallAnsweredAt(callId: string): Promise<number | undefined> {
+  const events = await clawops<{ data?: { event: string; timestamp: string }[] }>(`/calls/${callId}/events`)
+  const answered = events.body.data?.find(({ event }) => event === 'call.answered')
+  return answered ? Date.parse(answered.timestamp) : undefined
+}
+
+/** The call's recording (WAV), or null when there is none (yet). */
+export async function fetchCallRecording(callId: string): Promise<Response | null> {
+  const response = await fetch(`${API}/${env.CLAWOPS_ACCOUNT_ID}/recordings/${callId}`, { headers: { authorization: `Bearer ${env.CLAWOPS_API_KEY}` } })
+  return response.ok ? response : null
+}
+
+type LiveEvent = { id: string; event: string; timestamp?: string; detail?: { utteranceId?: string; role?: string; text?: string } }
 
 /**
  * What has been said on the call so far, from the voice agent's live transcript events.
@@ -88,13 +103,14 @@ export async function getCallLines(callId: string): Promise<CallLine[]> {
   let after = ''
   for (let page = 0; page < MAX_LIVE_EVENT_PAGES; page++) {
     const events = await clawops<{ data?: LiveEvent[]; hasMore?: boolean }>(`/calls/${callId}/live-events?limit=200${after && `&after=${encodeURIComponent(after)}`}`)
-    for (const { id, event, detail } of events.body.data ?? []) {
+    for (const { id, event, timestamp, detail } of events.body.data ?? []) {
       after = id
       if ((event !== 'transcript.partial' && event !== 'transcript.final') || !detail?.text) continue
       const key = detail.utteranceId ?? id
       // A partial carries the whole utterance so far and the final replaces it, so the latest event wins;
       // the Map keeps each utterance where it first appeared.
-      lines.set(key, { id: key, role: detail.role === 'agent' ? 'agent' : 'business', text: detail.text, final: event === 'transcript.final' })
+      const startedAt = lines.get(key)?.startedAt ?? (timestamp ? Date.parse(timestamp) : undefined)
+      lines.set(key, { id: key, role: detail.role === 'agent' ? 'agent' : 'business', text: detail.text, final: event === 'transcript.final', startedAt })
     }
     if (!events.body.hasMore || !after) break
   }
@@ -116,8 +132,8 @@ async function transcribeCall(callId: string): Promise<string | undefined> {
   let recording: Response | undefined
   for (let attempt = 0; attempt < RECORDING_TRIES; attempt++) {
     if (attempt) await new Promise((resolve) => setTimeout(resolve, RECORDING_RETRY_MS))
-    const response = await fetch(`${API}/${env.CLAWOPS_ACCOUNT_ID}/recordings/${callId}`, { headers: { authorization: `Bearer ${env.CLAWOPS_API_KEY}` } })
-    if (response.ok) {
+    const response = await fetchCallRecording(callId)
+    if (response) {
       recording = response
       break
     }
@@ -132,14 +148,14 @@ async function transcribeCall(callId: string): Promise<string | undefined> {
   return transcript
 }
 
-/** For the chat agent: how the call ended and, if it was answered, what was said. */
-export async function getCallResult(callId: string): Promise<CallResult> {
-  const { state, outcome } = await getCallStatus(callId)
-  if (state !== 'done' || outcome !== 'completed') return { state, outcome }
+/** How a call ended and, if it was answered, what was said. */
+export async function getCallReport(callId: string): Promise<CallReport> {
+  const status = await getCallStatus(callId)
+  if (status.state !== 'done' || status.outcome !== 'completed') return { ...status, lines: [] }
   const lines = await getCallLines(callId)
-  if (!lines.length) return { state, outcome, transcript: await transcribeCall(callId) }
+  if (!lines.length) return { ...status, lines, transcript: await transcribeCall(callId) }
   const transcript = lines.map(({ role, text }) => `${role === 'agent' ? 'Tokie agent' : 'Business'}: ${text}`).join('\n')
-  return { state, outcome, transcript: transcript.slice(0, MAX_TRANSCRIPT_CHARS) }
+  return { ...status, lines, transcript: transcript.slice(0, MAX_TRANSCRIPT_CHARS) }
 }
 
 // Call references handed to the browser are signed, so only calls this app placed can be looked up
