@@ -55,7 +55,7 @@ npm run test:ai
 npm run test:auth
 ```
 
-AI 검사는 로컬 Worker와 합성 응답을 사용합니다. 외부 제공자에 요청하지 않습니다.
+AI 검사는 로컬 Worker와 합성 응답을 사용합니다. 외부 제공자에 요청하지 않습니다. CI에서는 Cloudflare 원격 바인딩을 끄고 D1 인증 검사를 실행합니다. 로컬 개발에서 Workers AI를 실제로 호출하려면 Cloudflare 인증과 원격 바인딩이 필요합니다.
 
 Google 로그인 시작 검사는 로컬 서버에 합성 값 `GOOGLE_CLIENT_ID=synthetic-client-id`, `GOOGLE_CLIENT_SECRET=synthetic-client-secret`을 설정한 뒤 `npm run test:google`로 실행합니다. Google에 접속하거나 실제 계정을 사용하지 않습니다. CI에서도 이 합성 설정을 사용합니다.
 
