@@ -8,7 +8,10 @@
     "preview": "vite preview",
     "typecheck": "tsc --noEmit",
     "deploy:check": "wrangler deploy --dry-run",
-    "test:auth": "node scripts/check-auth.mjs"
+    "test:auth": "node scripts/check-auth.mjs",
+    "diagram:builder": "node tools/diagrams/server.mjs",
+    "diagram:build": "node tools/diagrams/build.mjs",
+    "diagram:test": "node --test tools/diagrams/test/*.test.mjs"
   },
   "dependencies": {
     "@tanstack/react-form": "^1.33.5",

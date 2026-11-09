@@ -1,0 +1,16 @@
+{
+  "title": "Talkie 음성 통화 구성안 · 설계 예시",
+  "nodes": [
+    {"id":"user","label":"사용자","kind":"external","status":"done"},
+    {"id":"browser","label":"브라우저","kind":"frontend","status":"running"},
+    {"id":"session","label":"세션 API","kind":"backend","status":"pending"},
+    {"id":"provider","label":"음성 모델","kind":"cloud","status":"pending"},
+    {"id":"mascot","label":"캐릭터 모션","kind":"frontend","status":"pending"}
+  ],
+  "edges": [
+    {"source":"user","target":"browser","label":"마이크"},
+    {"source":"browser","target":"session","label":"세션 요청"},
+    {"source":"session","target":"provider","label":"연결 준비"},
+    {"source":"browser","target":"mascot","label":"출력 음량"}
+  ]
+}

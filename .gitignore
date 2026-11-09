@@ -9,3 +9,6 @@ dist
 
 .dev.vars*
 !.dev.vars.example
+
+# 로컬 다이어그램 생성물
+/output/diagrams/

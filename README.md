@@ -46,3 +46,7 @@ GitHub Actions는 `main`에 대한 PR과 `main` 또는 `allen-wip` push에서 �
 4. `main` 배포 후 로그인, 세션과 로그아웃을 확인합니다. 이메일 인증과 관리자 권한은 아직 제공하지 않습니다.
 
 인증 요청 제한은 Cloudflare가 제공하는 `cf-connecting-ip`를 사용하고 D1에 카운터를 저장합니다. 앱은 Cloudflare를 통해 제공되어야 하며, 로컬 테스트에서 보낸 헤더는 프로덕션 클라이언트 식별을 검증하지 않습니다.
+
+## 다이어그램 빌더
+
+`npm run diagram:builder`로 로컬 Archify 빌더를 실행합니다. 노드·연결 편집, 모션 미리보기와 독립 HTML 내보내기는 [사용법](docs/다이어그램-빌더.md)을 참고하세요.
