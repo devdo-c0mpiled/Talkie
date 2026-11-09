@@ -1,0 +1,6 @@
+CREATE TABLE "rateLimit" (
+  "id" TEXT NOT NULL PRIMARY KEY,
+  "key" TEXT NOT NULL UNIQUE,
+  "count" INTEGER NOT NULL,
+  "lastRequest" INTEGER NOT NULL
+);
