@@ -4,7 +4,7 @@ import { handleApi } from '../server/api.mjs';
 import { buildPrompt } from '../server/config.mjs';
 import { encodePcm16, decodePcm16, pcmSampleRate } from '../src/gemini-audio.mjs';
 
-const settings = { provider: 'gemini', scenario: 'free', language: 'ko', voice: 'marin', instructions: '' };
+const settings = { provider: 'gemini', scenario: 'free', language: 'ko', voice: 'Kore', instructions: '' };
 const request = () => new Request('http://localhost:4317/api/session', {
   method: 'POST', headers: { origin: 'http://localhost:4317', 'Content-Type': 'application/json' },
   body: JSON.stringify(settings),

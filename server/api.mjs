@@ -1,3 +1,4 @@
+import { voiceCatalog } from './voices.mjs';
 import { buildPrompt, geminiConfig, greetingText, LANGUAGES, liveConfig, parseSettings, realtimeConfig, SCENARIOS } from './config.mjs';
 const json = (body, status = 200) => Response.json(body, { status, headers: { 'Cache-Control': 'no-store' } });
 export function configuration(env) {
@@ -27,6 +28,7 @@ export async function handleApi(request, env, upstream = fetch) {
  // This hackathon console runs locally. Remote access must be configured separately.
  if(!['localhost','127.0.0.1','[::1]'].includes(url.hostname)) return json({error:'로컬 테스트 환경에서 열어 주세요.'},403);
  if(request.method!=='GET' && request.headers.get('origin')!==url.origin) return json({error:'허용되지 않은 요청 출처입니다.'},403);
+ if(url.pathname==='/api/voices' && request.method==='GET') return json(await voiceCatalog(env,upstream));
  if(url.pathname==='/api/config' && request.method==='GET') return json(configuration(env));
  if(request.method!=='POST') return json({error:'지원하지 않는 요청입니다.'},405);
  let body;
@@ -72,7 +74,7 @@ export async function handleApi(request, env, upstream = fetch) {
    return json({error:`${eleven?'ElevenLabs':'OpenAI'} 연결 실패 (HTTP ${result.status})${detail?': '+detail.slice(0,350):''}`,upstreamStatus:result.status},result.status===429?429:502);
   }
   const prompt=buildPrompt(settings);
-  if(eleven) {const data=await result.json();if(!data.token)throw Error();return json({token:data.token,prompt,overrides:{agent:{language:settings.language}},dynamicVariables:{test_prompt:prompt,greeting:greetingText(settings.language)}});}
+  if(eleven) {const data=await result.json();if(!data.token)throw Error();return json({token:data.token,prompt,overrides:{agent:{language:settings.language},...(settings.voice==='default'?{}:{tts:{voiceId:settings.voice}})},dynamicVariables:{test_prompt:prompt,greeting:greetingText(settings.language)}});}
   let id,sdp;
   if(settings.provider==='live'){const data=await result.json();id=data.session?.id;sdp=data.transport?.sdp;}else{id=result.headers.get('location')?.split('/').pop();sdp=await result.text();}
   if(!id||!sdp?.startsWith('v=0'))throw Error();

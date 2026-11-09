@@ -1,3 +1,4 @@
+import { validVoice } from './voices.mjs';
 export const PROVIDERS = ['live', 'realtime', 'elevenlabs', 'gemini'];
 export const LANGUAGES = { ko: 'Korean', en: 'English', ja: 'Japanese', zh: 'Mandarin Chinese' };
 export const SCENARIOS = {
@@ -30,7 +31,7 @@ export function parseSettings(body = {}) {
   if (!Object.hasOwn(SCENARIOS, body.scenario)) throw new Error('시나리오를 선택해 주세요.');
   if (!Object.hasOwn(LANGUAGES, body.language)) throw new Error('지원하지 않는 언어입니다.');
   if (typeof body.instructions !== 'string' || body.instructions.length > 6000) throw new Error('추가 지시사항은 6,000자 이내로 입력해 주세요.');
-  if (!['marin', 'cedar', 'alloy', 'ash', 'coral', 'sage'].includes(body.voice)) throw new Error('지원하지 않는 목소리입니다.');
+  if (!validVoice(body.provider, body.voice)) throw new Error('지원하지 않는 목소리입니다.');
   return { provider: body.provider, scenario: body.scenario, language: body.language, instructions: body.instructions.trim(), voice: body.voice };
 }
 export function buildPrompt(settings) {
@@ -68,5 +69,5 @@ export function realtimeConfig(settings, env) {
 }
 
 export function geminiConfig(settings) {
- return {responseModalities:['AUDIO'], systemInstruction:{parts:[{text:buildPrompt(settings)}]}, inputAudioTranscription:{}, outputAudioTranscription:{}, speechConfig:{voiceConfig:{prebuiltVoiceConfig:{voiceName:'Kore'}}}};
+ return {responseModalities:['AUDIO'], systemInstruction:{parts:[{text:buildPrompt(settings)}]}, inputAudioTranscription:{}, outputAudioTranscription:{}, speechConfig:{voiceConfig:{prebuiltVoiceConfig:{voiceName:settings.voice}}}};
 }

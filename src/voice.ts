@@ -207,7 +207,7 @@ export class VoiceSession {
   }
   private async createSession(sdp?: string) {
     const response = await fetch('/api/session', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ...this.settings, sdp }), signal: AbortSignal.timeout(50000) });
-    const result = await response.json() as { error?: string; prompt: string; closeToken?: string; id?: string; model?: string; sdp: string; token: string; dynamicVariables: Record<string,string>; overrides: { agent: { prompt: {prompt: string}; language: 'ko' | 'en' | 'ja' | 'zh'; firstMessage: string } } };
+    const result = await response.json() as { error?: string; prompt: string; closeToken?: string; id?: string; model?: string; sdp: string; token: string; dynamicVariables: Record<string,string>; overrides: { tts?: {voiceId:string}; agent: { prompt: {prompt: string}; language: 'ko' | 'en' | 'ja' | 'zh'; firstMessage: string } } };
     if (!response.ok) throw new Error(result.error || '서비스 연결에 실패했습니다.');
     this.closeToken = result.closeToken;
     this.hooks.metadata({ prompt: result.prompt });

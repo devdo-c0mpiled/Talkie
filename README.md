@@ -99,3 +99,11 @@ npm run dev -- --host 127.0.0.1 --port 4317
 
 
 음성 API는 localhost 요청만 허용합니다. 음성 코드 검사는 `npm test`로 실행합니다.
+
+## 목소리 선택
+
+기본 모델은 GPT Live입니다. 각 모델 카드의 **목소리**를 선택한 뒤 대화를 시작합니다. 통화 중에는 변경할 수 없으며, 종료 후 다른 목소리로 다시 시작합니다. 선택한 값은 테스트 기록과 JSON에 함께 저장됩니다.
+
+GPT Live는 marin·noeul·quartz·ripple, Realtime은 내장 목소리 10종, Gemini는 Kore·Puck 등 8종을 제공합니다. ElevenLabs는 계정에서 조회한 목소리 목록의 첫 100개와 에이전트 기본 목소리를 제공합니다. 기존 ElevenLabs 에이전트는 `npm run setup:elevenlabs -- --enable-voice-selection`으로 Voice ID 재정의를 허용해야 합니다. 이 명령은 `.dev.vars`에 지정된 에이전트 설정과 버전 ID를 갱신합니다.
+
+목록 기준: [GPT Live](https://developers.openai.com/api/docs/guides/live-conversations), [Realtime](https://developers.openai.com/api/docs/guides/realtime-conversations), [Gemini Live](https://ai.google.dev/gemini-api/docs/live-guide), [ElevenLabs overrides](https://elevenlabs.io/docs/eleven-agents/customization/personalization/overrides).

@@ -5,6 +5,7 @@ import { createMascotBridge } from '../mascot-bridge'
 import type { Config, Phase, Provider, Run, Settings, LatencyUpdate } from '../types'
 import { latencySummary } from '../turn-latency.mjs'
 import '../poc.css'
+import { VOICES, DEFAULT_VOICES } from '../../server/voices.mjs'
 
 export const Route = createFileRoute('/poc')({ ssr: false, component: Poc, head: () => ({meta:[{title:'Talkie · Voice PoC'}]}) })
 const providers: Provider[] = ['live', 'realtime', 'elevenlabs', 'gemini']
@@ -15,6 +16,8 @@ const latencyText = (ms:number|null|undefined) => ms==null?'—':`${(ms/1000).to
 const latencyLabels:Record<string,string>={idle:'발화 대기',speaking:'발화 감지 중',waiting:'응답 대기',answered:'측정 완료',timeout:'15초 내 응답 없음',overlap:'동시 발화 · 측정 제외','playback-blocked':'오디오 재생 중단 · 측정 제외','sampling-gap':'측정 중단 · 측정 제외',cancelled:'측정 취소'}
 function Poc() {
  const [config,setConfig]=useState<Config>();
+ const [voices,setVoices]=useState<Record<Provider,{id:string;name:string}[]>>(VOICES);
+ const [selectedVoices,setSelectedVoices]=useState<Record<Provider,string>>(DEFAULT_VOICES);
  const [settings,setSettings]=useState<Settings>({provider:'live',scenario:'booking',language:'ko',voice:'marin',instructions:''});
  const [phase,setPhase]=useState<Phase>('idle');
  const [error,setError]=useState('');
@@ -54,6 +57,7 @@ function Poc() {
  const publish=()=>setCurrent(run.current?{...run.current,transcript:[...run.current.transcript]}:undefined);
  useEffect(()=>{
   void navigator.mediaDevices?.enumerateDevices().then(applyDevices).catch(()=>{});
+  fetch('/api/voices').then(r=>r.json() as Promise<{voices:Record<Provider,{id:string;name:string}[]>;error?:string}>).then(data=>{setVoices(data.voices);if(data.error)setError(data.error)}).catch(()=>setError('목소리 목록을 불러오지 못했습니다.'));
   fetch('/api/config').then(async r=>{const data=await r.json() as Config & {error?:string};if(!r.ok)throw Error(data.error);setConfig(data)}).catch(e=>setError(e.message));
   try {setHistory(JSON.parse(localStorage.getItem('talkie-poc-runs')||'[]'))}catch{}
   const script=document.createElement('script');script.type='module';script.src='/mascot/talkie-mascot.js';document.head.appendChild(script);
@@ -77,7 +81,7 @@ function Poc() {
   if(session.current||busy.current||!config)return;
   setSettings(previous=>({...previous,provider}));setError('');setElapsed(0);setHeard(false);inputDetected.current=false;started.current=0;setPhase('connecting');
   setLatency({phase:'idle',waitingMs:0});setHealth('');
-  const chosen={...settings,provider};
+  const chosen={...settings,provider,voice:selectedVoices[provider]};
   run.current={id:crypto.randomUUID(),startedAt:new Date().toISOString(),settings:chosen,config:config.providers[provider],durationSeconds:0,transcript:[],intervals:[],latencyResults:[],recoveries:[],events:[],scores:{},notes:''};publish();
   bridge.current=createMascotBridge();
   const active=new VoiceSession(chosen,{
@@ -103,6 +107,7 @@ function Poc() {
   <div className="poc-providers">{providers.map((provider,index)=><div className={`poc-provider ${settings.provider===provider?'selected':''}`} key={provider}>
    <div className="poc-card-top"><span className="poc-number">0{index+1}</span><span className={config?.providers[provider].configured?'poc-ready':''}>{config?config.providers[provider].configured?'키 설정됨':'설정 필요':'불러오는 중'}</span></div>
    <h2>{names[provider]}</h2><div className="poc-model">{config?.providers[provider].model||'—'}</div>
+   <label className="poc-voice">목소리<select aria-label={`${names[provider]} 목소리`} value={selectedVoices[provider]} disabled={active} onChange={e=>setSelectedVoices(previous=>({...previous,[provider]:e.target.value}))}>{voices[provider].map(voice=><option key={voice.id} value={voice.id}>{voice.name}</option>)}</select></label>
    <button className="poc-start" disabled={active||!config?.providers[provider].configured} onClick={()=>void start(provider)}>{active&&settings.provider===provider?(phase==='connecting'?'연결 중…':phase==='closing'?'종료 중…':'대화 중'):'대화 시작'} <span aria-hidden="true">↗</span></button>
   </div>)}</div>
   <div className="poc-settings"><label>언어<select value={settings.language} disabled={active} onChange={e=>setSettings({...settings,language:e.target.value})}>{Object.entries(languages).map(([id,name])=><option key={id} value={id}>{name}</option>)}</select></label>
