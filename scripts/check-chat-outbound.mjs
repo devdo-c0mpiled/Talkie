@@ -18,6 +18,12 @@ const worker = new Miniflare({ workers: [{ config: {
 } }] })
 const run = async (body) => (await worker.dispatchFetch('https://example.test/', { method: 'POST', body: JSON.stringify(body) })).json()
 try {
+  for (const number of ['001123456789', '002123456789', '006123456789', '+82001123456789', '06012345678', '0912345678']) {
+    assert.equal(await run({ type: 'normalize', number }), null, `reject ${number}`)
+  }
+  for (const [number, expected] of [['02-1234-5678', '0212345678'], ['010-1234-5678', '01012345678'], ['+82 31 123 4567', '0311234567'], ['070-1234-5678', '07012345678'], ['1588-1234', '15881234']]) {
+    assert.equal(await run({ type: 'normalize', number }), expected, `accept ${number}`)
+  }
   const db = await worker.getD1Database('DB')
   for (const statement of (await readFile('migrations/0004_live_call_transcripts.sql', 'utf8')).split(';').filter(x => x.trim())) await db.prepare(statement).run()
   const first = await run({ action: 'action-1', mode: 'webhook-first' })
@@ -59,5 +65,18 @@ try {
   assert.equal(fallback.transcriptIncomplete, true)
   const incomplete = await run({ type: 'result', callId: 'CA_webhook', mode: 'status-completed' })
   assert.equal(incomplete.transcriptIncomplete, true)
+  assert.deepEqual(await run({ type: 'recording-counts' }), { recordings: 3, transcriptions: 0 })
+  const failedRecording = await run({ type: 'result', callId: 'CA_webhook', mode: 'recording-failure' })
+  assert.equal(failedRecording.transcriptIncomplete, true)
+  assert.deepEqual(await run({ type: 'recording-counts' }), { recordings: 4, transcriptions: 0 })
+  const recorded = await run({ type: 'result', callId: 'CA_webhook', mode: 'recording-delayed' })
+  assert.equal(recorded.transcript, 'Synthetic recording transcript')
+  assert.equal(recorded.transcriptIncomplete, undefined)
+  assert.equal((await run({ type: 'result', callId: 'CA_webhook', mode: 'recording' })).transcript, recorded.transcript)
+  assert.deepEqual(await run({ type: 'recording-counts' }), { recordings: 7, transcriptions: 1 })
+  await db.prepare('INSERT INTO live_call_transcripts (call_id, event_id, role, text, start_ms, end_ms) VALUES (?, ?, ?, ?, ?, ?)')
+    .bind('CA_webhook', 'event-1', 'business', 'Live transcript', 0, 1).run()
+  assert.equal((await run({ type: 'result', callId: 'CA_webhook', mode: 'recording' })).transcript, 'Business: Live transcript')
+  assert.deepEqual(await run({ type: 'recording-counts' }), { recordings: 7, transcriptions: 1 })
   console.log('Outbound URL, webhook race, duplicate and unknown checks passed with synthetic D1 and provider')
 } finally { await worker.dispose() }

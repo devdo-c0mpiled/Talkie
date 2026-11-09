@@ -190,7 +190,7 @@ function CallLive({ reference, business, onDone, onActivity }: CallLiveProps) {
           ))}
         </ol>
       ) : (
-        <p className="ch-card-meta">{state === 'calling' ? 'Ringing…' : state === 'done' ? transcriptIncomplete ? 'The transcript is unavailable or incomplete.' : 'Nothing was said on this call.' : 'Unable to check the call. It may still be active.'}</p>
+        <p className="ch-card-meta">{state === 'calling' ? 'Ringing…' : state === 'done' ? transcriptIncomplete ? 'The transcript is unavailable or incomplete.' : 'No live transcript is available.' : 'Unable to check the call. It may still be active.'}</p>
       )}
       {transcriptIncomplete && lines.length > 0 && <p className="ch-card-meta">The transcript may be incomplete.</p>}
     </div>
@@ -343,18 +343,14 @@ function ChatConversation({ incoming, conversation, ready = true }: { incoming: 
     setMessages(messages.map((message) => message.id === INCOMING_CONTEXT_ID ? { ...message, parts: [{ type: 'text', content: contextText }] } : message))
   }, [conversation, contextText, isLoading, messages, setMessages])
 
-  // Coming from the landing page's call box: open the conversation with what the visitor entered there.
+  // Fill the draft with the call details entered on the landing page.
   useEffect(() => {
     if (conversation) return
     const intent = readCallIntent()
     if (!intent) return
-    // Sent on the next tick, so a mount that React tears down straight away (strict mode) never sends and cancels.
-    const timer = setTimeout(() => {
-      sessionStorage.removeItem(CALL_INTENT_STORAGE_KEY)
-      void sendMessage(openingMessage(intent))
-    }, 0)
-    return () => clearTimeout(timer)
-  }, [conversation, sendMessage])
+    sessionStorage.removeItem(CALL_INTENT_STORAGE_KEY)
+    setDraft(openingMessage(intent))
+  }, [conversation])
 
   // What the feed shows. Reasoning, tool bookkeeping and the app's own call-ended notes stay hidden.
   const rows = messages.flatMap((message) =>

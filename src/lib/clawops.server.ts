@@ -1,6 +1,8 @@
 import '@tanstack/react-start/server-only'
 
 import { env } from 'cloudflare:workers'
+import { generateTranscription } from '@tanstack/ai'
+import { getOpenAiTranscription } from './ai.server'
 import { bindCall, readTranscript, reserveCall } from './call-store.server'
 import type { CallLine } from './chat-tools'
 
@@ -47,7 +49,7 @@ export function normalizeKoreanNumber(input: string): string | null {
   if (digits.startsWith('+82')) digits = `0${digits.slice(3).replace(/^0/, '')}`
   if (digits.includes('+')) return null
   if (/^1[5-8]\d{6}$/.test(digits)) return digits
-  if (!/^0\d{8,11}$/.test(digits) || digits.startsWith('060')) return null
+  if (!/^0\d{8,11}$/.test(digits) || !/^0(?:2|1[016789]|3[1-3]|4[1-4]|5[0-5]|6[1-4]|70|80)/.test(digits)) return null
   return digits
 }
 
@@ -130,6 +132,34 @@ export async function getCallLines(callId: string): Promise<CallLine[]> {
   return readTranscript(env.DB, callId)
 }
 
+// ponytail: this cache is per Worker isolate and capped at 100 calls; use D1 if durable reuse is needed.
+const recordingTranscripts = new Map<string, string>()
+
+async function transcribeRecording(callId: string): Promise<string | undefined> {
+  const cached = recordingTranscripts.get(callId)
+  if (cached) return cached
+  try {
+    const url = `${API}/${env.CLAWOPS_ACCOUNT_ID}/recordings/${callId}`
+    const options = { method: 'GET', headers: { authorization: `Bearer ${env.CLAWOPS_API_KEY}` } }
+    let response = await fetch(url, options)
+    for (let retry = 1; response.status === 404 && retry <= 2; retry++) {
+      await new Promise((resolve) => setTimeout(resolve, retry * 1000))
+      response = await fetch(url, options)
+    }
+    if (!response.ok) return undefined
+    const audio = new File([await response.arrayBuffer()], 'call.wav', { type: 'audio/wav' })
+    const { text } = await generateTranscription({ adapter: getOpenAiTranscription(), audio, language: 'ko', threadId: `call-${callId}` })
+    const transcript = text.trim().slice(0, MAX_TRANSCRIPT_CHARS)
+    if (!transcript) return undefined
+    const oldest = recordingTranscripts.keys().next().value
+    if (recordingTranscripts.size >= 100 && oldest) recordingTranscripts.delete(oldest)
+    recordingTranscripts.set(callId, transcript)
+    return transcript
+  } catch {
+    return undefined
+  }
+}
+
 /** For the chat agent: how the call ended and what the live session transcribed. */
 export async function getCallResult(callId: string): Promise<CallResult> {
   let status: CallStatus
@@ -141,6 +171,10 @@ export async function getCallResult(callId: string): Promise<CallResult> {
   const { state, outcome, transcriptIncomplete } = status
   if (state !== 'done' || outcome !== 'completed') return { state, outcome }
   const lines = await getCallLines(callId)
+  if (!lines.length) {
+    const transcript = await transcribeRecording(callId)
+    return { state, outcome, transcript, transcriptIncomplete: transcript ? undefined : true }
+  }
   const transcript = lines.map(({ role, text }) => `${role === 'agent' ? 'Tokie agent' : 'Business'}: ${text}`).join('\n')
   return { state, outcome, transcriptIncomplete, transcript: transcript ? transcript.slice(0, MAX_TRANSCRIPT_CHARS) : undefined }
 }
