@@ -47,6 +47,22 @@ export const getCallResultDef = toolDefinition({
   }),
 })
 
+// Every field is required so the schema stays valid for strict tool calling; unknown details are empty strings.
+const booking = z.object({
+  status: z.enum(['confirmed', 'pending']).meta({ description: 'confirmed: the business agreed to the booking on the call. pending: the booking still waits for the business to confirm.' }),
+  when: z.string().meta({ description: 'Date and time of the booking in the traveler’s language, e.g. "Fri, Nov 20 · 3:00 PM". Empty if it was not said.' }),
+  where: z.string().meta({ description: 'Name of the business, with the area if known. Empty if unknown.' }),
+  note: z.string().meta({ description: 'One short thing the traveler should know or do, in their language. Empty if there is nothing.' }),
+})
+export type Booking = z.infer<typeof booking>
+
+export const showBookingDef = toolDefinition({
+  name: 'show_booking',
+  description: 'Show the traveler a card with the booking a call ended in. Only for a booking the call transcript shows was confirmed or is waiting for confirmation.',
+  inputSchema: booking,
+  outputSchema: z.object({ shown: z.boolean() }),
+})
+
 /** One thing said on a call, as shown live in the chat. `final` is false while the speaker is still mid-sentence. */
 export type CallLine = { id: string; role: 'agent' | 'business'; text: string; final: boolean }
 
