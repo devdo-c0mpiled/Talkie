@@ -5,6 +5,7 @@ declare namespace Cloudflare {
     ADMIN_EMAILS?: string
     GOOGLE_CLIENT_ID?: string
     GOOGLE_CLIENT_SECRET?: string
+    HOTEL_SANDBOX_ENABLED?: string
     OPENAI_API_KEY?: string
     GEMINI_API_KEY?: string
     ELEVENLABS_API_KEY?: string

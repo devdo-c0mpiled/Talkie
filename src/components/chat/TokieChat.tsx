@@ -11,6 +11,9 @@ import {
 import type { CallLine, CallPlaced, CallRequest, KoreanNumber } from '../../lib/chat-tools'
 import { LineIcon } from '../landing/LineIcon'
 import { HotelRehearsal } from './HotelRehearsal'
+import { HotelWorkflowCard } from './HotelWorkflowCard'
+import { hotelInquiryDef, hotelStatusDef } from '../../lib/hotel-workflow-tools'
+import type { Workflow } from '../../lib/hotel-workflow'
 
 const DIGIT_HEIGHT = 34
 const CALL_POLL_MS = 1500
@@ -179,13 +182,13 @@ function CallLive({ reference, business, onDone, onActivity }: CallLiveProps) {
 /** One line of the feed: a text bubble, the number card, or a call with its live transcript. */
 type Row = { key: string; mine: boolean } & ({ text: string } | { card: KoreanNumber } | { call: string; business: string })
 
-export function TokieChat({ hotelHarness = false }: { hotelHarness?: boolean }) {
+export function TokieChat({ hotelHarness = false, hotelScenario = 'booking', onHotelScenarioChange, hotelWorkflow = hotelHarness }: { hotelWorkflow?: boolean; hotelHarness?: boolean; hotelScenario?: string; onHotelScenarioChange?: (id:string)=>void }) {
   // One conversation per visit: the id only has to stay stable while this screen is mounted.
   const [threadId] = useState(() => crypto.randomUUID())
   const { messages, sendMessage, isLoading, error, interrupts } = useChat({
-    connection: fetchServerSentEvents('/api/chat'),
+    connection: fetchServerSentEvents(hotelWorkflow ? '/api/hotel-chat' : '/api/chat'),
     threadId,
-    tools: [issueKoreanNumberDef, callBusinessDef],
+    tools: hotelWorkflow ? [hotelInquiryDef,hotelStatusDef] : [issueKoreanNumberDef, callBusinessDef],
   })
   const [draft, setDraft] = useState('')
   const [toast, setToast] = useState<{ id: number; text: string } | null>(null)
@@ -194,6 +197,38 @@ export function TokieChat({ hotelHarness = false }: { hotelHarness?: boolean }) 
   const reportedCalls = useRef(new Set<string>())
   const feed = useRef<HTMLDivElement>(null)
   const input = useRef<HTMLInputElement>(null)
+
+  const [hotelState,setHotelState]=useState<Workflow|null>(null)
+  const [hotelError,setHotelError]=useState<string|null>(null)
+  const [hotelBusy,setHotelBusy]=useState(false)
+  async function hotelRequest(action: string, extra: Record<string,unknown> = {}) {
+    const response=await fetch('/api/hotel-workflow',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId:threadId,action,...extra})})
+    const result=await response.json() as {state?:Workflow;error?:string}
+    if(!response.ok||!result.state)throw Error(result.error??'호텔 처리 결과를 확인하지 못했습니다.')
+    return result.state
+  }
+  useEffect(()=>{
+    if(!hotelWorkflow)return
+    let stopped=false
+    hotelRequest('start',{scenario:hotelScenario}).then(state=>{if(!stopped){setHotelState(state);setHotelError(null)}}).catch(error=>{if(!stopped)setHotelError(error.message)})
+    return ()=>{stopped=true}
+  },[threadId,hotelWorkflow,hotelScenario])
+  useEffect(()=>{
+    if(!hotelWorkflow||isLoading||!hotelState)return
+    let stopped=false
+    hotelRequest('read').then(state=>{if(!stopped)setHotelState(state)}).catch(error=>{if(!stopped)setHotelError(error.message)})
+    return ()=>{stopped=true}
+  },[messages,isLoading,hotelWorkflow])
+  async function decideHotel(approved:boolean) {
+    if(!hotelState?.offer||hotelBusy||isLoading)return
+    setHotelBusy(true);setHotelError(null)
+    try {
+      const state=await hotelRequest('decide',{offerId:hotelState.offer.id,version:hotelState.version,approved})
+      setHotelState(state)
+      await sendMessage(approved?'I confirm this request. Please check the status.':'Please keep my reservation unchanged.')
+    } catch(error){setHotelError(error instanceof Error?error.message:'호텔 요청 처리 실패')}
+    finally{setHotelBusy(false)}
+  }
 
   // Pick up the number typed on the landing page.
   useEffect(() => {
@@ -244,7 +279,7 @@ export function TokieChat({ hotelHarness = false }: { hotelHarness?: boolean }) 
   }
 
   // Keep the newest content in view while a reply streams in.
-  useEffect(scrollToEnd, [messages, typing, isLoading, error, approval])
+  useEffect(scrollToEnd, [messages, typing, isLoading, error, approval, hotelState, hotelError])
 
   useEffect(() => {
     if (!toast) return
@@ -264,7 +299,7 @@ export function TokieChat({ hotelHarness = false }: { hotelHarness?: boolean }) 
   function send(event: SubmitEvent<HTMLFormElement>) {
     event.preventDefault()
     const text = draft.trim()
-    if (!text || isLoading || approval) return
+    if (!text || isLoading || approval || hotelBusy || (hotelWorkflow && !hotelState)) return
     void sendMessage(text)
     setDraft('')
   }
@@ -281,7 +316,7 @@ export function TokieChat({ hotelHarness = false }: { hotelHarness?: boolean }) 
         <button type="button" className="ch-lang" aria-label="Language: English"><LineIcon name="globe" size={16} />English</button>
       </header>
 
-      {hotelHarness && <HotelRehearsal busy={isLoading || Boolean(approval) || rows.some(row => 'call' in row)} messages={messages} onFill={fillQuickReply} />}
+      {hotelHarness && <HotelRehearsal selectedId={hotelScenario} onScenarioChange={onHotelScenarioChange} busy={isLoading || hotelBusy || Boolean(approval) || rows.some(row => 'call' in row)} messages={messages} onFill={fillQuickReply} />}
 
       <main ref={feed} className="ch-feed" aria-live="polite">
         <div className="ch-row"><TokieAvatar /><p className="ch-bubble">{GREETING}</p></div>
@@ -309,6 +344,7 @@ export function TokieChat({ hotelHarness = false }: { hotelHarness?: boolean }) 
         )}
         {typing && !approval && <div className="ch-row" aria-hidden="true"><TokieAvatar /><span className="ch-typing"><i /><i /><i /></span></div>}
         {hasNumber && !isLoading && <p className="ch-status"><span className="ch-live" aria-hidden="true" />Waiting for calls · I'll answer for you</p>}
+        {hotelWorkflow && <HotelWorkflowCard state={hotelState} busy={isLoading || hotelBusy} error={hotelError} onDecide={decideHotel} />}
         {error && !isLoading && <p className="ch-error" role="alert">Tokie couldn’t reply. Please try again.</p>}
       </main>
 
@@ -321,7 +357,7 @@ export function TokieChat({ hotelHarness = false }: { hotelHarness?: boolean }) 
         <form className="ch-compose" onSubmit={send}>
           <label className="lp-sr-only" htmlFor="ch-message">Message Tokie</label>
           <input ref={input} id="ch-message" type="text" placeholder="Message Tokie" autoComplete="off" maxLength={1000} value={draft} onChange={(event) => setDraft(event.target.value)} />
-          <button type="submit" className="ch-send" aria-label="Send" disabled={isLoading || Boolean(approval)}><LineIcon name="arrowUp" /></button>
+          <button type="submit" className="ch-send" aria-label="Send" disabled={isLoading || Boolean(approval) || hotelBusy || (hotelWorkflow && !hotelState)}><LineIcon name="arrowUp" /></button>
         </form>
       </footer>
     </div>

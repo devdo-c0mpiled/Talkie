@@ -26,7 +26,9 @@ jobs:
       - run: npm run deploy:check
       - run: npm run test:ai
       - name: Check hotel relay harness
-        run: npm --prefix harness/hotel test
+        run: |
+          npm --prefix harness/hotel test
+          node --test scripts/check-hotel-workflow.mjs
       - name: Check authentication against local D1
         run: |
           export TALKIE_TEST_ADMIN_EMAIL="admin-$(openssl rand -hex 12)@example.test"

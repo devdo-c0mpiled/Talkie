@@ -1,12 +1,14 @@
 import { useState } from 'react'
 import { hotelScenarios } from '../../lib/hotel-rehearsal'
 
-export function HotelRehearsal({ busy, messages, onFill }: {
+export function HotelRehearsal({ busy, messages, onFill, selectedId, onScenarioChange }: {
+  selectedId: string
+  onScenarioChange?: (id:string)=>void
   busy: boolean
   messages: readonly unknown[]
   onFill: (text: string) => void
 }) {
-  const [selected, setSelected] = useState(0)
+  const selected = Math.max(0,hotelScenarios.findIndex(item=>item.id===selectedId))
   const [line, setLine] = useState(0)
   const scenario = hotelScenarios[selected]
   function download() {
@@ -21,8 +23,8 @@ export function HotelRehearsal({ busy, messages, onFill }: {
   }
   return <details className="ch-rehearsal" open>
     <summary>호텔 대본 테스트</summary>
-    <p>실제 AI 응답 · 전화 발신은 별도 승인</p>
-    <label>상황<select aria-label="호텔 테스트 상황" disabled={busy} value={selected} onChange={event => { setSelected(Number(event.target.value)); setLine(0) }}>
+    <p>실제 AI · 모의 호텔 · 테스트 DB</p>
+    <label>상황<select aria-label="호텔 테스트 상황" disabled={busy} value={selected} onChange={event => { onScenarioChange?.(hotelScenarios[Number(event.target.value)].id); setLine(0) }}>
       {hotelScenarios.map((item, index) => <option key={item.id} value={index}>{item.label}</option>)}
     </select></label>
     <label>고객 발화<select aria-label="고객 발화 단계" disabled={busy} value={line} onChange={event => setLine(Number(event.target.value))}>

@@ -6,6 +6,10 @@ import { getOpenAiChat } from './ai.server'
 import { CALL_ENDED_MARKER, callBusinessDef, getCallResultDef } from './chat-tools'
 import { callsConfigured, fromCallReference, getCallResult as lookUpCallResult, normalizeKoreanNumber, placeCall, toCallReference } from './clawops.server'
 
+import {hotelInquiryDef, hotelStatusDef} from './hotel-workflow-tools'
+import {readWorkflow, queryWorkflow, sandboxEnabled} from './hotel-workflow.server'
+import {HOTEL_WORKFLOW_PROMPT} from './hotel-workflow-prompt'
+
 const MODEL = 'gpt-6.1-terra'
 // The endpoint is public, so cap what a single request can cost.
 const MAX_REQUEST_CHARS = 24_000
@@ -54,7 +58,8 @@ const callBusiness = callBusinessDef.server(async ({ phoneNumber, businessName, 
   return { status: 'calling' as const, call: await toCallReference(placed.callId) }
 })
 
-export async function handleChat(request: Request): Promise<Response> {
+export async function handleChat(request: Request, {hotelSandbox = false} = {}): Promise<Response> {
+  if (hotelSandbox && !sandboxEnabled()) return Response.json({error: 'Hotel sandbox is not enabled.'}, {status:503})
   if (!env.OPENAI_API_KEY) return Response.json({ error: 'Chat is not configured.' }, { status: 503 })
 
   let params
@@ -76,7 +81,21 @@ export async function handleChat(request: Request): Promise<Response> {
     return Boolean(content) || Boolean(parts?.length) || Boolean(toolCalls?.length)
   })
 
-  const calls = callsConfigured()
+  let hotelState
+  if (hotelSandbox) {
+    try { hotelState = await readWorkflow(params.threadId ?? '') }
+    catch { return Response.json({error:'Start a hotel session first.'},{status:409}) }
+  }
+  const hotelSessionId = params.threadId ?? ''
+  const hotelInquiry = hotelInquiryDef.server(async input => {
+    try { return {ok:true,state:await queryWorkflow(hotelSessionId,input)} }
+    catch(error) { return {ok:false,error:error instanceof Error?error.message:'Hotel lookup failed'} }
+  })
+  const hotelStatus = hotelStatusDef.server(async () => {
+    try { return {ok:true,state:await readWorkflow(hotelSessionId)} }
+    catch(error) { return {ok:false,error:error instanceof Error?error.message:'Hotel status failed'} }
+  })
+  const calls = !hotelSandbox && callsConfigured()
   const abortController = new AbortController()
   const stream = chat({
     adapter: getOpenAiChat(MODEL),
@@ -86,8 +105,8 @@ export async function handleChat(request: Request): Promise<Response> {
     // Needed to continue a run that paused for the traveler to approve a call.
     parentRunId: params.parentRunId,
     resume: params.resume,
-    systemPrompts: [SYSTEM_PROMPT, calls ? CALLS_PROMPT : NO_CALLS_PROMPT],
-    tools: calls ? [callBusiness, getCallResult] : [],
+    systemPrompts: hotelSandbox ? [HOTEL_WORKFLOW_PROMPT, `Persisted sandbox state: ${JSON.stringify(hotelState)}`] : [SYSTEM_PROMPT, calls ? CALLS_PROMPT : NO_CALLS_PROMPT],
+    tools: hotelSandbox ? [hotelInquiry,hotelStatus] : calls ? [callBusiness, getCallResult] : [],
     modelOptions: { max_output_tokens: MAX_REPLY_TOKENS },
     abortController,
   })

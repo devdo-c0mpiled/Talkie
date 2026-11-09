@@ -17,6 +17,8 @@ import { Route as LoginRouteImport } from './routes/login'
 import { Route as SignupRouteImport } from './routes/signup'
 import { Route as TestRouteImport } from './routes/test'
 import { Route as ApiChatRouteImport } from './routes/api.chat'
+import { Route as ApiHotelChatRouteImport } from './routes/api.hotel-chat'
+import { Route as ApiHotelWorkflowRouteImport } from './routes/api.hotel-workflow'
 import { Route as ApiAuthSplatRouteImport } from './routes/api.auth.$'
 import { Route as ApiCallsCallRouteImport } from './routes/api.calls.$call'
 
@@ -60,6 +62,16 @@ const ApiChatRoute = ApiChatRouteImport.update({
   path: '/api/chat',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiHotelChatRoute = ApiHotelChatRouteImport.update({
+  id: '/api/hotel-chat',
+  path: '/api/hotel-chat',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiHotelWorkflowRoute = ApiHotelWorkflowRouteImport.update({
+  id: '/api/hotel-workflow',
+  path: '/api/hotel-workflow',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiAuthSplatRoute = ApiAuthSplatRouteImport.update({
   id: '/api/auth/$',
   path: '/api/auth/$',
@@ -80,6 +92,8 @@ export interface FileRoutesByFullPath {
   '/signup': typeof SignupRoute
   '/test': typeof TestRoute
   '/api/chat': typeof ApiChatRoute
+  '/api/hotel-chat': typeof ApiHotelChatRoute
+  '/api/hotel-workflow': typeof ApiHotelWorkflowRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
   '/api/calls/$call': typeof ApiCallsCallRoute
 }
@@ -92,6 +106,8 @@ export interface FileRoutesByTo {
   '/signup': typeof SignupRoute
   '/test': typeof TestRoute
   '/api/chat': typeof ApiChatRoute
+  '/api/hotel-chat': typeof ApiHotelChatRoute
+  '/api/hotel-workflow': typeof ApiHotelWorkflowRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
   '/api/calls/$call': typeof ApiCallsCallRoute
 }
@@ -105,6 +121,8 @@ export interface FileRoutesById {
   '/signup': typeof SignupRoute
   '/test': typeof TestRoute
   '/api/chat': typeof ApiChatRoute
+  '/api/hotel-chat': typeof ApiHotelChatRoute
+  '/api/hotel-workflow': typeof ApiHotelWorkflowRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
   '/api/calls/$call': typeof ApiCallsCallRoute
 }
@@ -119,6 +137,8 @@ export interface FileRouteTypes {
     | '/signup'
     | '/test'
     | '/api/chat'
+    | '/api/hotel-chat'
+    | '/api/hotel-workflow'
     | '/api/auth/$'
     | '/api/calls/$call'
   fileRoutesByTo: FileRoutesByTo
@@ -131,6 +151,8 @@ export interface FileRouteTypes {
     | '/signup'
     | '/test'
     | '/api/chat'
+    | '/api/hotel-chat'
+    | '/api/hotel-workflow'
     | '/api/auth/$'
     | '/api/calls/$call'
   id:
@@ -143,6 +165,8 @@ export interface FileRouteTypes {
     | '/signup'
     | '/test'
     | '/api/chat'
+    | '/api/hotel-chat'
+    | '/api/hotel-workflow'
     | '/api/auth/$'
     | '/api/calls/$call'
   fileRoutesById: FileRoutesById
@@ -156,6 +180,8 @@ export interface RootRouteChildren {
   SignupRoute: typeof SignupRoute
   TestRoute: typeof TestRoute
   ApiChatRoute: typeof ApiChatRoute
+  ApiHotelChatRoute: typeof ApiHotelChatRoute
+  ApiHotelWorkflowRoute: typeof ApiHotelWorkflowRoute
   ApiAuthSplatRoute: typeof ApiAuthSplatRoute
   ApiCallsCallRoute: typeof ApiCallsCallRoute
 }
@@ -218,6 +244,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiChatRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/hotel-chat': {
+      id: '/api/hotel-chat'
+      path: '/api/hotel-chat'
+      fullPath: '/api/hotel-chat'
+      preLoaderRoute: typeof ApiHotelChatRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/hotel-workflow': {
+      id: '/api/hotel-workflow'
+      path: '/api/hotel-workflow'
+      fullPath: '/api/hotel-workflow'
+      preLoaderRoute: typeof ApiHotelWorkflowRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/auth/$': {
       id: '/api/auth/$'
       path: '/api/auth/$'
@@ -244,6 +284,8 @@ const rootRouteChildren: RootRouteChildren = {
   SignupRoute: SignupRoute,
   TestRoute: TestRoute,
   ApiChatRoute: ApiChatRoute,
+  ApiHotelChatRoute: ApiHotelChatRoute,
+  ApiHotelWorkflowRoute: ApiHotelWorkflowRoute,
   ApiAuthSplatRoute: ApiAuthSplatRoute,
   ApiCallsCallRoute: ApiCallsCallRoute,
 }
