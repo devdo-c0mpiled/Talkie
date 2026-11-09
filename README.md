@@ -45,6 +45,19 @@ ELEVENLABS_API_KEY=
 
 이메일 소유권 확인과 비밀번호 재설정은 아직 제공하지 않습니다. `ADMIN_EMAILS`에 지정된 이메일로 먼저 가입한 사람은 이메일 소유 확인 없이 관리자 권한을 얻습니다. Google 로그인을 사용하려면 Google Cloud 프로젝트의 웹 OAuth 클라이언트 ID와 비밀값을 `.dev.vars`의 `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`에 설정하고 승인된 리디렉션 URI에 `http://127.0.0.1:3000/api/auth/callback/google`을 추가합니다. 두 값이 모두 설정되면 Google 로그인 버튼이 표시됩니다. 기존 계정과 Google 계정의 연결은 비활성화되어 있습니다.
 
+## ClawOps 전화와 GPT-Live
+
+ClawOps 번호로 수신한 전화를 자체 Cloudflare Worker의 VoiceML 웹훅과 WebSocket으로 연결합니다. Worker는 전화 음성을 OpenAI GPT-Live에 직접 전달하고, GPT-Live가 위임한 질문은 TanStack AI의 OpenAI 채팅 어댑터로 처리합니다. ClawOps 관리형 에이전트와 Cloudflare RealtimeKit은 사용하지 않습니다. 전화 발신, 예약 실행 및 브라우저 마이크 UI는 이 기능에 포함되지 않습니다.
+
+1. 로컬 D1에 `npx wrangler d1 migrations apply talkie-db --local`을 실행합니다. 운영 환경에는 배포 대상 계정과 D1을 확인한 뒤 별도로 원격 마이그레이션을 적용해야 합니다. Workers Builds는 D1 마이그레이션을 자동으로 적용하지 않습니다.
+2. `.dev.vars` 또는 운영 Worker에 `OPENAI_API_KEY`, `CLAWOPS_SIGNING_KEY`, `CLAWOPS_ACCOUNT_ID`, `CLAWOPS_PHONE_NUMBER`, `CLAWOPS_WEBHOOK_URL`을 설정합니다. Signing Key는 ClawOps API 키와 다른 웹훅 서명 키입니다. 웹훅 URL은 공개 HTTPS 주소와 `/api/clawops/voice` 경로를 정확히 포함해야 합니다.
+3. ClawOps 번호의 수신 라우팅을 웹훅 URL로 설정합니다. 기존 번호의 라우팅을 변경하기 전에 현재 용도를 확인하세요. GPT-Live 및 TanStack AI 모델에 접근할 수 있는 OpenAI 프로젝트가 필요합니다.
+4. 인증 정보와 번호 연결 후 실제 전화로 음성 송수신과 종료를 확인합니다. 전화 및 AI 사용량에는 각 공급자의 요금이 적용됩니다.
+
+[ClawOps 서명 검증](https://platform.claw-ops.com/docs/webhooks/signature-verification)과 [양방향 스트림](https://platform.claw-ops.com/docs/build/stream)을 사용하며, 서명 검증 후 D1에 발급한 5분 유효 일회용 토큰으로 각 스트림을 인증합니다. 재전송 방지를 위한 통화 ID 해시는 D1에 보관됩니다. 대화 내용은 통화 중 메모리에만 유지하며, 통화 종료 시 지웁니다.
+
+[OpenAI GPT-Live](https://developers.openai.com/api/docs/guides/voice-websockets)와 [client delegation](https://developers.openai.com/api/docs/guides/live-delegation)을 직접 사용합니다. TanStack AI의 기존 Realtime 어댑터를 GPT-Live 어댑터로 취급하지 않습니다. 서비스나 네트워크 오류 시 통화가 종료될 수 있습니다. 실제 통화 성공과 재생 지연, 상대방의 끼어들기 처리는 별도 실통화 검증이 필요합니다.
+
 ## 검사
 
 ```sh
@@ -52,11 +65,12 @@ npm run typecheck
 npm run build
 npm run deploy:check
 npm run test:ai
+npm run test:live
 # 로컬 서버를 실행한 상태에서 별도 터미널에서 실행합니다.
 npm run test:auth
 ```
 
-AI 검사는 로컬 Worker와 합성 응답을 사용합니다. 외부 제공자에 요청하지 않습니다. CI에서는 Cloudflare 원격 바인딩을 끄고 D1 인증 검사를 실행합니다. 로컬 개발에서 Workers AI를 실제로 호출하려면 Cloudflare 인증과 원격 바인딩이 필요합니다.
+AI와 통화 연동 검사는 로컬 Worker와 합성 응답을 사용합니다. 외부 제공자에 요청하지 않습니다. CI에서는 Cloudflare 원격 바인딩을 끄고 D1 인증 검사를 실행합니다. 로컬 개발에서 Workers AI를 실제로 호출하려면 Cloudflare 인증과 원격 바인딩이 필요합니다.
 
 Google 로그인 시작 검사는 로컬 서버에 합성 값 `GOOGLE_CLIENT_ID=synthetic-client-id`, `GOOGLE_CLIENT_SECRET=synthetic-client-secret`을 설정한 뒤 `npm run test:google`로 실행합니다. Google에 접속하거나 실제 계정을 사용하지 않습니다. CI에서도 이 합성 설정을 사용합니다.
 

@@ -15,6 +15,8 @@ import { Route as AdminRouteImport } from './routes/admin'
 import { Route as LoginRouteImport } from './routes/login'
 import { Route as SignupRouteImport } from './routes/signup'
 import { Route as ApiAuthSplatRouteImport } from './routes/api.auth.$'
+import { Route as ApiClawopsStreamRouteImport } from './routes/api.clawops.stream'
+import { Route as ApiClawopsVoiceRouteImport } from './routes/api.clawops.voice'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
@@ -46,6 +48,16 @@ const ApiAuthSplatRoute = ApiAuthSplatRouteImport.update({
   path: '/api/auth/$',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiClawopsStreamRoute = ApiClawopsStreamRouteImport.update({
+  id: '/api/clawops/stream',
+  path: '/api/clawops/stream',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiClawopsVoiceRoute = ApiClawopsVoiceRouteImport.update({
+  id: '/api/clawops/voice',
+  path: '/api/clawops/voice',
+  getParentRoute: () => rootRouteImport,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -54,6 +66,8 @@ export interface FileRoutesByFullPath {
   '/login': typeof LoginRoute
   '/signup': typeof SignupRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
+  '/api/clawops/stream': typeof ApiClawopsStreamRoute
+  '/api/clawops/voice': typeof ApiClawopsVoiceRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -62,6 +76,8 @@ export interface FileRoutesByTo {
   '/login': typeof LoginRoute
   '/signup': typeof SignupRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
+  '/api/clawops/stream': typeof ApiClawopsStreamRoute
+  '/api/clawops/voice': typeof ApiClawopsVoiceRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -71,12 +87,30 @@ export interface FileRoutesById {
   '/login': typeof LoginRoute
   '/signup': typeof SignupRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
+  '/api/clawops/stream': typeof ApiClawopsStreamRoute
+  '/api/clawops/voice': typeof ApiClawopsVoiceRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/account' | '/admin' | '/login' | '/signup' | '/api/auth/$'
+  fullPaths:
+    | '/'
+    | '/account'
+    | '/admin'
+    | '/login'
+    | '/signup'
+    | '/api/auth/$'
+    | '/api/clawops/stream'
+    | '/api/clawops/voice'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/account' | '/admin' | '/login' | '/signup' | '/api/auth/$'
+  to:
+    | '/'
+    | '/account'
+    | '/admin'
+    | '/login'
+    | '/signup'
+    | '/api/auth/$'
+    | '/api/clawops/stream'
+    | '/api/clawops/voice'
   id:
     | '__root__'
     | '/'
@@ -85,6 +119,8 @@ export interface FileRouteTypes {
     | '/login'
     | '/signup'
     | '/api/auth/$'
+    | '/api/clawops/stream'
+    | '/api/clawops/voice'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -94,6 +130,8 @@ export interface RootRouteChildren {
   LoginRoute: typeof LoginRoute
   SignupRoute: typeof SignupRoute
   ApiAuthSplatRoute: typeof ApiAuthSplatRoute
+  ApiClawopsStreamRoute: typeof ApiClawopsStreamRoute
+  ApiClawopsVoiceRoute: typeof ApiClawopsVoiceRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -140,6 +178,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiAuthSplatRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/clawops/stream': {
+      id: '/api/clawops/stream'
+      path: '/api/clawops/stream'
+      fullPath: '/api/clawops/stream'
+      preLoaderRoute: typeof ApiClawopsStreamRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/clawops/voice': {
+      id: '/api/clawops/voice'
+      path: '/api/clawops/voice'
+      fullPath: '/api/clawops/voice'
+      preLoaderRoute: typeof ApiClawopsVoiceRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
@@ -150,6 +202,8 @@ const rootRouteChildren: RootRouteChildren = {
   LoginRoute: LoginRoute,
   SignupRoute: SignupRoute,
   ApiAuthSplatRoute: ApiAuthSplatRoute,
+  ApiClawopsStreamRoute: ApiClawopsStreamRoute,
+  ApiClawopsVoiceRoute: ApiClawopsVoiceRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

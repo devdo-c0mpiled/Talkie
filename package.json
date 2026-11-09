@@ -9,6 +9,7 @@
     "typecheck": "tsc --noEmit",
     "deploy:check": "wrangler deploy --dry-run",
     "test:ai": "node scripts/check-ai.mjs",
+    "test:live": "node scripts/check-clawops-security.mjs && node scripts/check-live-media.mjs && node scripts/check-live-delegation.mjs && node scripts/check-clawops-integration.mjs && node scripts/check-clawops-router.mjs",
     "test:auth": "node scripts/check-auth.mjs",
     "test:google": "node scripts/check-google.mjs"
   },
