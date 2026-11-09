@@ -159,7 +159,7 @@ export function BookingPage({ result }: { result: CallResult | null }) {
               <path d="M21 33.5l7.5 7.5L44 25.5" pathLength="24" />
             </svg>
           )}
-          <h1 className="bk-title bk-rise">{HERO[status]}</h1>
+          <h1 className="bk-title bk-rise">{result.conversationMode==='hotel_roleplay' && status==='pending'?'Request received':HERO[status]}</h1>
           <p className="bk-sub bk-rise">{headline}</p>
           {booked && days !== null && (
             <span className="bk-chip bk-rise"><LineIcon name="timer" size={16} />{days === 0 ? 'Today' : days === 1 ? 'Tomorrow' : `In ${days} days`}</span>
@@ -178,7 +178,7 @@ export function BookingPage({ result }: { result: CallResult | null }) {
                 {details.map(({ label, value, source }) => (
                   <div key={label} className="bk-kv"><dt>{label}</dt><dd>{value}{source && <br />}{fromCall(source)}</dd></div>
                 ))}
-                <div className="bk-kv"><dt>{booked ? 'Booking ID' : 'Call ID'}</dt><dd className="bk-mono">{id}</dd></div>
+                <div className="bk-kv"><dt>{'Call ID'}</dt><dd className="bk-mono">{id}</dd></div>
               </dl>
             </section>
 
