@@ -31,7 +31,9 @@ const standalonePaths = ['/', '/signup', '/chat']
 const standalonePrefix = '/b/'
 
 function Root() {
-  const isStandalone = useLocation({ select: ({ pathname }) => standalonePaths.includes(pathname) || pathname.startsWith(standalonePrefix) })
+  const isStandalone = useLocation({
+    select: ({ pathname }) => standalonePaths.includes(pathname) || pathname.startsWith(standalonePrefix) || pathname.startsWith('/biz'),
+  })
 
   return (
     <html lang={isStandalone ? 'en' : 'ko'}>
