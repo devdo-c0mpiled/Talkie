@@ -51,7 +51,7 @@ export function LandingHeader() {
             </select>
             <Icon src={caretDown} width={10} height={6} />
           </label>
-          <Link to="/admin" className="lp-nav-link lp-for-clinics">For clinics <Icon src={arrowRight} size={16} /></Link>
+          <Link to="/account" className="lp-nav-link lp-for-clinics">For clinics <Icon src={arrowRight} size={16} /></Link>
           <a className="lp-btn lp-btn-teal lp-header-cta" href="#clinics">Find a clinic</a>
         </div>
       </div>

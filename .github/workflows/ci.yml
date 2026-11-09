@@ -24,10 +24,14 @@ jobs:
       - run: npm run typecheck
       - run: npm run build
       - run: npm run deploy:check
+      - run: npm run test:ai
       - name: Check authentication against local D1
         run: |
+          export TALKIE_TEST_ADMIN_EMAIL="admin-$(openssl rand -hex 12)@example.test"
           printf 'BETTER_AUTH_URL=http://127.0.0.1:3000\nBETTER_AUTH_SECRET=' > .dev.vars
           openssl rand -base64 32 >> .dev.vars
+          printf 'ADMIN_EMAILS= %s , another@example.test\n' "${TALKIE_TEST_ADMIN_EMAIL^^}" >> .dev.vars
+          printf 'GOOGLE_CLIENT_ID=synthetic-client-id\nGOOGLE_CLIENT_SECRET=synthetic-client-secret\n' >> .dev.vars
           npx wrangler d1 migrations apply talkie-db --local
           npm run dev -- --host 127.0.0.1 --port 3000 --strictPort > /tmp/talkie-dev.log 2>&1 &
           server_pid=$!
@@ -35,6 +39,7 @@ jobs:
           for attempt in $(seq 1 30); do
             if curl --silent --output /dev/null http://127.0.0.1:3000/login; then
               npm run test:auth
+              npm run test:google
               exit 0
             fi
             sleep 2

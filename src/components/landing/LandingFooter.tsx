@@ -30,7 +30,7 @@ const columns: { title: string; links: FooterLink[] }[] = [
   {
     title: 'For clinics',
     links: [
-      { label: 'Create a receptionist', href: '/admin' },
+      { label: 'Create a receptionist', href: '/account' },
       { label: 'Pricing', href: '#' },
       { label: 'Book a demo', href: '#' },
     ],
