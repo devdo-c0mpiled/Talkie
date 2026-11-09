@@ -24,8 +24,8 @@ export function SignupForm() {
           return
         }
         await router.invalidate()
-        // Step 2 ("Get a phone number") is not built yet, so new accounts land on the admin page.
-        await router.navigate({ to: '/admin' })
+        // Step 2 ("Get a phone number") is not built yet, so new accounts land on the account page.
+        await router.navigate({ to: '/account' })
       } catch {
         setError('We couldn’t reach the server. Please try again in a moment.')
       }

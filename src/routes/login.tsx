@@ -25,7 +25,7 @@ function Login() {
     setError('')
     setGooglePending(true)
     try {
-      const result = await authClient.signIn.social({ provider: 'google', callbackURL: '/admin' })
+      const result = await authClient.signIn.social({ provider: 'google', callbackURL: '/account' })
       if (result.error) throw new Error('Google sign-in failed')
     } catch {
       setError('Google 로그인에 연결하지 못했습니다. 잠시 후 다시 시도해 주세요.')
@@ -45,7 +45,7 @@ function Login() {
           return
         }
         await router.invalidate()
-        await router.navigate({ to: '/admin' })
+        await router.navigate({ to: '/account' })
       } catch {
         setError('연결하지 못했습니다. 잠시 후 다시 시도해 주세요.')
       }

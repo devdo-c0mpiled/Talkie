@@ -11,7 +11,7 @@ assert.ok((await page.text()).includes('Google로 계속하기'), 'Google button
 const response = await fetch(`${base}/api/auth/sign-in/social`, {
   method: 'POST',
   headers: { 'content-type': 'application/json', origin: base, 'cf-connecting-ip': '2001:db8::1' },
-  body: JSON.stringify({ provider: 'google', callbackURL: '/admin', disableRedirect: true }),
+  body: JSON.stringify({ provider: 'google', callbackURL: '/account', disableRedirect: true }),
 })
 assert.equal(response.status, 200, 'Google sign-in must start')
 const result = await response.json()
