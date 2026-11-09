@@ -27,7 +27,13 @@ const { TokieChat } = await import(`data:text/javascript;base64,${Buffer.from(bu
 const conversation = { id: 'call-a', callerNumber: '07012345678', createdAt: 1, calls: [{ callId: 'a', createdAt: 1, state: 'complete', lines: [{ id: 'line-a', role: 'business', text: '합성 통화 내용', final: true }] }] }
 globalThis.__session = { isPending: false, data: { user: { id: 'customer-a' } } }
 globalThis.__states = [[conversation], 'call-a', [conversation], false, false, false, 0]
-globalThis.__messages = []
+globalThis.__messages = [
+  { id: 'result-reply', role: 'assistant', parts: [
+    { type: 'tool-call', name: 'get_call_result', output: { state: 'done', outcome: 'completed', result: { id: 'TK-TEST-1234', status: 'pending', business: 'Example Clinic', headline: 'Pending', when: '' } } },
+    { type: 'text', content: 'The clinic will confirm your booking.' },
+  ] },
+  { id: 'next-message', role: 'user', parts: [{ type: 'text', content: 'Thank you, Tokie.' }] },
+]
 globalThis.window = { location: { host: 'example.test' } }
 const html = renderToStaticMarkup(React.createElement(TokieChat))
 assert.match(html, /Incoming conversations/)
@@ -40,6 +46,10 @@ assert.match(html, /href="\/sfu-live"[^>]*>Open voice conversation<\/a>/)
 assert.match(html, /Experimental in-app voice/)
 assert.match(html, /Separate from phone calls and RealtimeKit meetings/)
 assert.match(html, /Live provider connections have not been verified/)
+assert.match(html, /href="\/b\/TK-TEST-1234"[^>]*target="_blank"/)
+assert.match(html, /Your booking at Example Clinic/)
+assert.ok(html.indexOf('The clinic will confirm your booking.') < html.indexOf('href="/b/TK-TEST-1234"'), 'result card follows the assistant reply')
+assert.ok(html.indexOf('href="/b/TK-TEST-1234"') < html.indexOf('Thank you, Tokie.'), 'result card precedes the next user message')
 const firstKey = TokieChat().key
 globalThis.__session = { isPending: false, data: { user: { id: 'customer-b' } } }
 assert.notEqual(TokieChat().key, firstKey, 'account switch remounts private conversation state')

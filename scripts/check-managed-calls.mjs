@@ -37,6 +37,30 @@ try {
   assert.equal(await recording.text(), 'synthetic audio')
   const redirect = await handleManagedCalls(new Request('https://example.test/api/managed-calls?call=call-a&recording=1'), { db, userId: 'alice', accountId: 'synthetic', apiKey: 'synthetic-key', fetcher: async () => new Response(null, { status: 302, headers: { location: 'https://signed.example.test/audio' } }) })
   assert.equal(redirect.status, 502, 'unverified recording redirects are rejected')
+  let storageRequests = 0
+  const redirected = (userId, location, nextStatus = 200) => handleManagedCalls(new Request('https://example.test/api/managed-calls?call=call-a&recording=1'), {
+    db, userId, accountId: 'synthetic', apiKey: 'synthetic-key', fetcher: async (url, options) => {
+      assert.equal(options.redirect, 'manual')
+      if (url.startsWith('https://api.claw-ops.com/')) {
+        assert.equal(new Headers(options.headers).get('authorization'), 'Bearer synthetic-key')
+        return new Response(null, { status: 302, headers: { location } })
+      }
+      storageRequests++
+      assert.equal(options.headers, undefined, 'provider credentials never go to storage')
+      return nextStatus === 200 ? new Response('synthetic audio', { headers: { 'content-type': 'audio/wav' } }) : new Response(null, { status: nextStatus, headers: { location: 'https://attacker.example.test/audio' } })
+    },
+  })
+  const trusted = 'https://storage.googleapis.com/synthetic?X-Goog-Signature=synthetic'
+  assert.equal((await redirected('bob', trusted)).status, 404, 'ownership is checked before any storage lookup')
+  assert.equal(storageRequests, 0)
+  assert.equal((await redirected('alice', trusted)).status, 200)
+  assert.equal(storageRequests, 1)
+  for (const location of ['https://storage.googleapis.com:443/synthetic?X-Goog-Signature=synthetic', 'https://user@storage.googleapis.com/synthetic?X-Goog-Signature=synthetic', 'https://storage.googleapis.com/synthetic', 'https://storage.googleapis.com.attacker.example.test/synthetic?X-Goog-Signature=synthetic']) {
+    assert.equal((await redirected('alice', location)).status, 502)
+    assert.equal(storageRequests, 1, 'untrusted redirect is rejected before making a request')
+  }
+  assert.equal((await redirected('alice', trusted, 302)).status, 502, 'a second redirect is not followed')
+  assert.equal(storageRequests, 2)
   const absent = await handleManagedCalls(new Request('https://example.test/api/managed-calls?call=call-a&recording=1'), { db, userId: 'alice', accountId: 'synthetic', apiKey: 'synthetic-key', fetcher: async () => new Response(null, { status: 404 }) })
   assert.equal(absent.status, 404, 'missing recordings are not fabricated')
   console.log('Managed call account isolation, status, and recording access passed')

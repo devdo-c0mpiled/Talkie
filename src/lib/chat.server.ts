@@ -5,7 +5,7 @@ import { chat, chatParamsFromRequest, toServerSentEventsResponse } from '@tansta
 import { getOpenAiChat } from './ai.server'
 import { prepareCallResult } from './call-result.server'
 import { CALL_ENDED_MARKER, callBusinessDef, getCallResultDef } from './chat-tools'
-import { callsConfigured, fromCallReference, getCallReport, getCallResult as lookUpCallResult, normalizeKoreanNumber, placeCall, toCallReference } from './clawops.server'
+import { callLookupConfigured, callsConfigured, fromCallReference, getCallReport, getCallResult as lookUpCallResult, normalizeKoreanNumber, placeCall, toCallReference } from './clawops.server'
 
 const MODEL = 'gpt-6.1-terra'
 // The endpoint is public, so cap what a single request can cost.
@@ -30,9 +30,11 @@ const CALLS_PROMPT = `Calling a business
 - Only call a number the traveler typed in this chat. If you do not have the number, ask for it. Before calling, make sure you know what to ask or book and every detail the business will need (date, time, party size, name to book under). Ask the traveler for whatever is missing first.
 - The app asks the traveler to approve each call, so do not ask "shall I call?" yourself: call the tool once you have what you need.
 - In instructionsKo give only the traveler's actual request, supplied details, questions, and any explicit conditions. Call approval authorizes the requested booking; do not invent a requirement for further approval, a booking number, or a particular booking procedure.
-- When the tool returns status "calling", tell the traveler in one sentence that the call is on its way and that you will report back. For "invalid-number", ask them to check the number. For "failed", say the call could not be placed; if the reason is "instruction-too-long", ask the traveler to shorten the request. For "unknown", say the call may have been placed but its status could not be confirmed; do not place another call automatically.
+- When the tool returns status "calling", tell the traveler in one sentence that the call is on its way and that you will report back. For "invalid-number", ask them to check the number. For "failed", say the call could not be placed; if the reason is "instruction-too-long", ask the traveler to shorten the request. For "unknown", say the call may have been placed but its status could not be confirmed; do not place another call automatically.`
+
+const LOOKUP_PROMPT = `Reporting an existing call
 - A message starting with ${CALL_ENDED_MARKER} comes from the app, not the traveler: the call it names has ended. Call ${getCallResultDef.name} with that reference, then tell the traveler what happened in their language. The transcript is in Korean; lines are labelled "Tokie agent" (the voice agent) and "Business", or unlabelled with the agent speaking first. The traveler may have watched the Korean lines appear live, so focus on what they mean. Report only what the transcript shows; say clearly whether the booking was confirmed, refused or left open, and what the traveler should do next. If transcriptIncomplete is true, explain that the transcript may be incomplete, and do not claim nothing was said. If there is no transcript and it is not incomplete, say how the call ended (for example nobody answered). If the traveler asks about a call that is still going (state "calling"), say it is still in progress. Never mention the marker or the reference.
-- Summarize the actual outcome in one or two sentences without referring to a result link. Treat availability as distinct from a completed booking; if the transcript is ambiguous, say confirmation is unclear.`
+- Summarize the actual outcome in one or two sentences. Treat availability as distinct from a completed booking; if the transcript is ambiguous, say confirmation is unclear. When ${getCallResultDef.name} returns a result, the app shows a link to the booking and call details under your reply, so point the traveler to it without writing a link yourself. If no result is returned, do not mention a result link.`
 
 const NO_CALLS_PROMPT = `Calling a business
 - You cannot place calls yet. If the traveler asks you to call a business, say that phone calls are not available yet, and offer to write a message they can send instead.`
@@ -74,6 +76,7 @@ export async function handleChat(request: Request): Promise<Response> {
   })
 
   const calls = callsConfigured()
+  const lookup = callLookupConfigured()
   // The client approval controls the UI flow; it is not an authorization boundary. A stable tool call ID prevents replayed approvals from dialing twice.
   const callBusiness = callBusinessDef.server(async ({ phoneNumber, businessName, instructionsKo }, context) => {
     const to = normalizeKoreanNumber(phoneNumber)
@@ -96,8 +99,8 @@ export async function handleChat(request: Request): Promise<Response> {
     // Needed to continue a run that paused for the traveler to approve a call.
     parentRunId: params.parentRunId,
     resume: params.resume,
-    systemPrompts: [SYSTEM_PROMPT, calls ? CALLS_PROMPT : NO_CALLS_PROMPT],
-    tools: calls ? [callBusiness, getCallResult] : [],
+    systemPrompts: [SYSTEM_PROMPT, calls ? CALLS_PROMPT : NO_CALLS_PROMPT, ...(lookup ? [LOOKUP_PROMPT] : [])],
+    tools: [...(calls ? [callBusiness] : []), ...(lookup ? [getCallResult] : [])],
     modelOptions: { max_output_tokens: MAX_REPLY_TOKENS },
     abortController,
   })

@@ -1,3 +1,5 @@
+import { fetchClawopsRecording } from './clawops-recording.server'
+
 type ManagedDeps = {
   db: D1Database
   userId: string | null
@@ -93,9 +95,9 @@ export async function handleManagedCalls(request: Request, deps: ManagedDeps): P
   const base = `https://api.claw-ops.com/v1/accounts/${encodeURIComponent(deps.accountId)}`
   const recording = params.get('recording') === '1'
   try {
-    const response = await fetcher(`${base}/${recording ? 'recordings' : 'calls'}/${encodeURIComponent(callId)}`, {
-      headers: { Authorization: `Bearer ${deps.apiKey}` }, redirect: 'manual',
-    })
+    const response = recording
+      ? await fetchClawopsRecording(deps.accountId, deps.apiKey, callId, fetcher)
+      : await fetcher(`${base}/calls/${encodeURIComponent(callId)}`, { headers: { Authorization: `Bearer ${deps.apiKey}` }, redirect: 'manual' })
     if (recording && response.status === 404) return Response.json({ error: 'Recording unavailable.' }, { status: 404, headers })
     if (response.status !== 200) throw new Error('Provider unavailable')
     if (recording) {

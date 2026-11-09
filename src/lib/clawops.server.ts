@@ -4,6 +4,7 @@ import { env } from 'cloudflare:workers'
 import { chat, generateTranscription } from '@tanstack/ai'
 import { getOpenAiChat, getOpenAiTranscription } from './ai.server'
 import { bindCall, readTranscript, reserveCall } from './call-store.server'
+import { fetchClawopsRecording } from './clawops-recording.server'
 import { analyzeCall, callAnalysisModelSchema } from './call-result'
 import type { CallAnalysis } from './call-result'
 import type { CallLine } from './chat-tools'
@@ -18,6 +19,9 @@ const IN_PROGRESS = new Set(['queued', 'ringing', 'in-progress'])
 const MAX_TRANSCRIPT_CHARS = 6000
 // ponytail: after 30 seconds without a completed flush, return a clearly incomplete transcript. Longer shutdowns need durable completion tracking.
 const TRANSCRIPT_WAIT_MS = 30_000
+// ponytail: limit legacy event reads to five pages; add durable pagination for longer calls.
+const MAX_LIVE_EVENT_PAGES = 5
+class LegacyEventsMissing extends Error {}
 
 export type CallStatus = { state: 'calling' | 'done'; outcome: string; transcriptIncomplete?: boolean }
 export type CallResult = (CallStatus | { state: 'unknown'; outcome: 'status-unavailable' }) & { transcript?: string; analysis: CallAnalysis }
@@ -33,6 +37,10 @@ export function callsConfigured() {
   } catch {
     return false
   }
+}
+
+export function callLookupConfigured() {
+  return Boolean(env.CLAWOPS_API_KEY && env.CLAWOPS_ACCOUNT_ID && env.BETTER_AUTH_SECRET && env.BETTER_AUTH_SECRET.length >= 32 && env.DB)
 }
 
 function sameText(a: string, b: string) {
@@ -123,7 +131,8 @@ export async function getCallStatus(callId: string): Promise<CallStatus & { to?:
     const bridge = await env.DB.prepare(`UPDATE live_calls SET provider_completed_at = COALESCE(provider_completed_at, ?)
       WHERE call_id = ? RETURNING provider_completed_at, bridge_finished_at`).bind(now, callId)
       .first<{ provider_completed_at: number; bridge_finished_at: number | null }>()
-    if (!bridge) throw new Error('Call reservation unavailable')
+    // A missing row is an older or otherwise unclassified call, not evidence of a completed transcript.
+    if (!bridge) return { state: 'done', outcome, transcriptIncomplete: true, ...details }
     if (bridge.bridge_finished_at !== null) return { state: 'done', outcome, ...details }
     if (now - bridge.provider_completed_at < TRANSCRIPT_WAIT_MS) return { state: 'calling', outcome, ...details }
     return { state: 'done', outcome, transcriptIncomplete: true, ...details }
@@ -140,15 +149,43 @@ export async function getCallAnsweredAt(callId: string): Promise<number | undefi
   return Number.isFinite(timestamp) ? timestamp : undefined
 }
 
+async function recordingResponse(callId: string): Promise<Response> {
+  if (!env.CLAWOPS_ACCOUNT_ID || !env.CLAWOPS_API_KEY) throw new Error('Call service unavailable')
+  return fetchClawopsRecording(env.CLAWOPS_ACCOUNT_ID, env.CLAWOPS_API_KEY, callId)
+}
+
 /** The call's recording (WAV), or null when there is none yet. */
 export async function fetchCallRecording(callId: string): Promise<Response | null> {
-  const response = await fetch(`${API}/${env.CLAWOPS_ACCOUNT_ID}/recordings/${callId}`, { redirect: 'manual', headers: { authorization: `Bearer ${env.CLAWOPS_API_KEY}` } })
+  const response = await recordingResponse(callId)
   return response.ok ? response : null
 }
 
-/** Live transcript lines from our own GPT-Live bridge. */
+/** Read local bridge transcripts or, for unclassified old references, provider events. */
 export async function getCallLines(callId: string): Promise<CallLine[]> {
-  return readTranscript(env.DB, callId)
+  const local = await env.DB.prepare('SELECT intent FROM live_calls WHERE call_id = ?').bind(callId).first<{ intent: string }>()
+  if (local) return readTranscript(env.DB, callId)
+  const lines = new Map<string, CallLine>()
+  let after = ''
+  for (let page = 0; page < MAX_LIVE_EVENT_PAGES; page++) {
+    const events = await clawops<{ data?: unknown; hasMore?: unknown }>(`/calls/${encodeURIComponent(callId)}/live-events?limit=200${after ? `&after=${encodeURIComponent(after)}` : ''}`)
+    if (events.status === 404) throw new LegacyEventsMissing()
+    if (events.status !== 200 || !Array.isArray(events.body.data) || typeof events.body.hasMore !== 'boolean') throw new Error('Live events unavailable')
+    for (const event of events.body.data) {
+      if (!event || typeof event !== 'object' || typeof event.id !== 'string' || !/^\d{1,19}$/.test(event.id) || (after && BigInt(event.id) <= BigInt(after))) throw new Error('Invalid live event cursor')
+      after = event.id
+      if (event.event !== 'transcript.partial' && event.event !== 'transcript.final') continue
+      const detail = event.detail
+      if (!detail || typeof detail !== 'object' || typeof detail.text !== 'string' || !detail.text || !['agent', 'user', 'caller', 'business'].includes(detail.role)) throw new Error('Invalid live transcript')
+      if (detail.utteranceId !== undefined && (typeof detail.utteranceId !== 'string' || !detail.utteranceId)) throw new Error('Invalid live transcript')
+      const key = detail.utteranceId ?? event.id
+      const previous = lines.get(key)
+      const time = typeof event.timestamp === 'string' ? Date.parse(event.timestamp) : NaN
+      lines.set(key, { id: key, role: detail.role === 'agent' ? 'agent' : 'business', text: detail.text, final: event.event === 'transcript.final', startedAt: previous?.startedAt ?? (Number.isFinite(time) ? time : undefined) })
+    }
+    if (!events.body.hasMore) break
+    if (!events.body.data.length) throw new Error('Invalid live event pagination')
+  }
+  return [...lines.values()]
 }
 
 // ponytail: this cache is per Worker isolate and capped at 100 calls; use D1 if durable reuse is needed.
@@ -158,12 +195,10 @@ async function transcribeRecording(callId: string): Promise<string | undefined> 
   const cached = recordingTranscripts.get(callId)
   if (cached) return cached
   try {
-    const url = `${API}/${env.CLAWOPS_ACCOUNT_ID}/recordings/${callId}`
-    const options = { method: 'GET', headers: { authorization: `Bearer ${env.CLAWOPS_API_KEY}` } }
-    let response = await fetch(url, options)
+    let response = await recordingResponse(callId)
     for (let retry = 1; response.status === 404 && retry <= 2; retry++) {
       await new Promise((resolve) => setTimeout(resolve, retry * 1000))
-      response = await fetch(url, options)
+      response = await recordingResponse(callId)
     }
     if (!response.ok) return undefined
     const audio = new File([await response.arrayBuffer()], 'call.wav', { type: 'audio/wav' })
@@ -189,7 +224,11 @@ export async function getCallResult(callId: string): Promise<CallResult> {
   }
   const { state, outcome, transcriptIncomplete } = status
   if (state !== 'done' || outcome !== 'completed') return { state, outcome, analysis: await analyzeCall({ state, outcome }, async () => undefined) }
-  const lines = await getCallLines(callId)
+  let lines: CallLine[]
+  try { lines = await getCallLines(callId) } catch (error) {
+    const transcript = error instanceof LegacyEventsMissing ? await transcribeRecording(callId) : undefined
+    return { state, outcome, transcript, transcriptIncomplete: true, analysis: { status: 'unavailable', reason: 'transcript-unavailable' } }
+  }
   let transcript: string | undefined
   let incomplete = transcriptIncomplete ?? false
   if (!lines.length) {
@@ -230,7 +269,11 @@ export async function getCallResult(callId: string): Promise<CallResult> {
 export async function getCallReport(callId: string): Promise<CallReport> {
   const status = await getCallStatus(callId)
   if (status.state !== 'done' || status.outcome !== 'completed') return { ...status, lines: [] }
-  const lines = await getCallLines(callId)
+  let lines: CallLine[]
+  try { lines = await getCallLines(callId) } catch (error) {
+    if (!(error instanceof LegacyEventsMissing)) throw error
+    return { ...status, lines: [], transcript: await transcribeRecording(callId), transcriptIncomplete: true }
+  }
   if (!lines.length) return { ...status, lines, transcript: await transcribeRecording(callId), transcriptIncomplete: true }
   const transcript = lines.map(({ role, text }) => `${role === 'agent' ? 'Tokie agent' : 'Business'}: ${text}`).join('\n')
   let incomplete = status.transcriptIncomplete || transcript.length > MAX_TRANSCRIPT_CHARS
@@ -266,12 +309,16 @@ export async function fromCallReference(reference: string): Promise<string | nul
 /** GET /api/calls/$call: progress for the chat screen, with what has been said so far. */
 export async function handleCallStatus(reference: string): Promise<Response> {
   const headers = { 'Cache-Control': 'no-store' }
-  if (!callsConfigured()) return Response.json({ error: 'Calls are not configured.' }, { status: 503, headers })
+  if (!callLookupConfigured()) return Response.json({ error: 'Calls are not configured.' }, { status: 503, headers })
   const callId = await fromCallReference(reference)
   if (!callId) return Response.json({ error: 'Unknown call.' }, { status: 404, headers })
   try {
     const status = await getCallStatus(callId)
-    const lines = await getCallLines(callId)
+    let lines: CallLine[]
+    try { lines = await getCallLines(callId) } catch (error) {
+      if (!(error instanceof LegacyEventsMissing)) throw error
+      return Response.json({ ...status, transcriptIncomplete: true, lines: [] }, { headers })
+    }
     return Response.json({ ...status, lines }, { headers })
   } catch {
     return Response.json({ error: 'Call status unavailable.' }, { status: 502, headers })

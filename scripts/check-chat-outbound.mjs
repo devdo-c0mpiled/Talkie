@@ -21,7 +21,7 @@ try {
   for (const number of ['001123456789', '002123456789', '006123456789', '+82001123456789', '06012345678', '0912345678']) {
     assert.equal(await run({ type: 'normalize', number }), null, `reject ${number}`)
   }
-  for (const [number, expected] of [['02-1234-5678', '0212345678'], ['010-1234-5678', '01012345678'], ['+82 31 123 4567', '0311234567'], ['070-1234-5678', '07012345678'], ['1588-1234', '15881234']]) {
+  for (const [number, expected] of [['02-1234-5678', '0212345678'], ['010-1234-5678', '01012345678'], ['+82 31 123 4567', '0311234567'], ['070-1234-5678', '07012345678'], ['050-1234-5678', '05012345678'], ['1588-1234', '15881234']]) {
     assert.equal(await run({ type: 'normalize', number }), expected, `accept ${number}`)
   }
   const db = await worker.getD1Database('DB')
@@ -101,5 +101,68 @@ try {
   assert.equal(capped.transcriptIncomplete, true)
   assert.equal(capped.analysis.reservation.status, 'unknown', 'a transcript at the storage cap cannot establish a reservation')
   assert.deepEqual(await run({ type: 'recording-counts' }), { recordings: 7, transcriptions: 1 })
+  const legacyCall = 'CA_legacy'
+  const legacyRequest = (body) => worker.dispatchFetch('https://example.test/', { method: 'POST', body: JSON.stringify({ callId: legacyCall, ...body }) })
+  const legacyStatus = await legacyRequest({ type: 'status', mode: 'legacy-pages', withoutDialConfig: true })
+  assert.equal(legacyStatus.status, 200, 'existing lookup does not require new-call configuration')
+  const legacyBody = await legacyStatus.json()
+  assert.equal(legacyBody.state, 'done')
+  assert.equal(legacyBody.transcriptIncomplete, true, 'missing local row does not prove transcript completeness')
+  assert.equal(legacyBody.lines.length, 1, 'multiple event pages are merged by utterance')
+  assert.equal((await legacyRequest({ type: 'status', invalidReference: true })).status, 404)
+  for (const [mode, state] of [['legacy-404', 'done'], ['legacy-calling-404', 'calling']]) {
+    const response = await legacyRequest({ type: 'status', mode })
+    assert.equal(response.status, 200, 'missing events do not hide a verified provider status')
+    const body = await response.json()
+    assert.equal(body.state, state)
+    assert.equal(body.transcriptIncomplete, true)
+    assert.deepEqual(body.lines, [])
+  }
+  for (const mode of ['legacy-error', 'legacy-forbidden', 'legacy-malformed', 'legacy-role']) {
+    const response = await legacyRequest({ type: 'status', mode })
+    assert.equal(response.status, 502, `${mode} must not appear as an empty transcript`)
+    const result = await (await legacyRequest({ type: 'result', mode })).json()
+    assert.equal(result.transcriptIncomplete, true)
+    assert.equal(result.analysis.status, 'unavailable')
+  }
+  const beforeDbFailure = await run({ type: 'legacy-counts' })
+  assert.equal((await legacyRequest({ type: 'status', mode: 'legacy-db-error' })).status, 502)
+  assert.equal((await (await legacyRequest({ type: 'result', mode: 'legacy-db-error' })).json()).state, 'unknown')
+  assert.deepEqual(await run({ type: 'legacy-counts' }), beforeDbFailure, 'DB errors do not initiate legacy lookup or recording fallback')
+  const partial = await (await legacyRequest({ type: 'status', mode: 'legacy-partial' })).json()
+  assert.equal(partial.lines[0].final, false)
+  assert.equal(partial.transcriptIncomplete, true)
+  const beforeCap = await run({ type: 'legacy-counts' })
+  const cappedLegacy = await (await legacyRequest({ type: 'status', mode: 'legacy-cap' })).json()
+  assert.equal(cappedLegacy.transcriptIncomplete, true, 'a capped event listing is not complete')
+  assert.equal((await run({ type: 'legacy-counts' })).events, beforeCap.events + 5)
+  const legacyResult = await (await legacyRequest({ type: 'result', mode: 'legacy-pages' })).json()
+  assert.equal(legacyResult.transcriptIncomplete, true)
+  assert.equal(legacyResult.analysis.reservation.status, 'unknown', 'legacy data cannot establish a reservation')
+  const legacyReport = await (await legacyRequest({ type: 'report', mode: 'legacy-pages' })).json()
+  assert.equal(legacyReport.transcriptIncomplete, true)
+  assert.deepEqual(legacyReport.lines, [], 'incomplete transcript cannot produce a result page')
+  const recording = await (await legacyRequest({ type: 'result', mode: 'legacy-404', callId: 'CA_missing_events' })).json()
+  assert.equal(recording.transcriptIncomplete, true)
+  assert.equal(recording.analysis.status, 'unavailable')
+  const empty = await (await legacyRequest({ type: 'result', mode: 'legacy-empty', callId: 'CA_empty_events' })).json()
+  assert.equal(empty.transcriptIncomplete, true, 'empty events cannot establish the source or completeness')
+  const redirectCounts = await run({ type: 'legacy-counts' })
+  const redirect = await (await legacyRequest({ type: 'result', mode: 'legacy-redirect', callId: 'CA_bad_redirect' })).json()
+  assert.equal(redirect.transcript, undefined, 'undocumented redirects must not be followed')
+  assert.equal((await run({ type: 'legacy-counts' })).recordings, redirectCounts.recordings + 1)
+  const beforeStorage = await run({ type: 'legacy-counts' })
+  const signed = await (await legacyRequest({ type: 'result', mode: 'legacy-gcs', callId: 'CA_signed' })).json()
+  assert.equal(signed.transcript, 'Synthetic recording transcript')
+  assert.equal(signed.transcriptIncomplete, true)
+  assert.equal((await run({ type: 'legacy-counts' })).storage, beforeStorage.storage + 1, 'trusted storage is fetched without credentials')
+  for (const mode of ['legacy-port', 'legacy-credentials', 'legacy-no-sign']) {
+    const count = (await run({ type: 'legacy-counts' })).storage
+    const result = await (await legacyRequest({ type: 'result', mode, callId: `CA_${mode}` })).json()
+    assert.equal(result.transcript, undefined)
+    assert.equal((await run({ type: 'legacy-counts' })).storage, count, `${mode} must be rejected before storage fetch`)
+  }
+  const double = await (await legacyRequest({ type: 'result', mode: 'legacy-double', callId: 'CA_double' })).json()
+  assert.equal(double.transcript, undefined, 'a second redirect is not followed')
   console.log('Outbound URL, webhook race, duplicate and unknown checks passed with synthetic D1 and provider')
 } finally { await worker.dispose() }
