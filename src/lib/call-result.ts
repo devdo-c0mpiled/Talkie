@@ -6,6 +6,10 @@ export const callResultSchema = z.object({
   guests: z.number().int().positive().nullable(), roomType: z.string().nullable(),
   guestName: z.string().nullable(), reservationNumber: z.string().nullable(),
   evidence: z.string().nullable(),
+  durationDays: z.number().int().positive().nullable().optional(),
+  nights: z.number().int().positive().nullable().optional(),
+  durationText: z.string().nullable().optional(),
+  needsDateConfirmation: z.boolean().optional(),
 })
 export type ReservationResult = z.infer<typeof callResultSchema>
 export type ConversationMode = 'business_call' | 'hotel_roleplay'
@@ -16,5 +20,17 @@ export function validateCallResult(result: ReservationResult, mode: Conversation
     next.status = mode === 'hotel_roleplay' ? 'requested' : 'unknown'
     next.reservationNumber = null
   }
+  if(next.checkIn && /^\d{4}-\d{2}-\d{2}$/.test(next.checkIn)) {
+    if(next.nights && !next.checkOut) {
+      const date=new Date(next.checkIn+'T00:00:00Z')
+      if(!Number.isNaN(date.getTime())) {date.setUTCDate(date.getUTCDate()+next.nights);next.checkOut=date.toISOString().slice(0,10)}
+    }
+    if(next.checkOut && /^\d{4}-\d{2}-\d{2}$/.test(next.checkOut) && next.checkOut<=next.checkIn)next.checkOut=null
+  }
+  if(next.durationDays && !next.nights && !next.checkOut)next.needsDateConfirmation=true
   return next
 }
+
+export const callResultExtractionSchema=callResultSchema.extend({
+ durationDays:z.number().int().positive().nullable(),nights:z.number().int().positive().nullable(),durationText:z.string().nullable(),needsDateConfirmation:z.boolean(),
+})

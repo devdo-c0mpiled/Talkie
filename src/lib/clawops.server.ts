@@ -28,6 +28,11 @@ export function callsConfigured() {
   return Boolean(env.CLAWOPS_API_KEY && env.CLAWOPS_ACCOUNT_ID && env.CLAWOPS_FROM_NUMBER && env.CLAWOPS_AGENT_ID && env.BETTER_AUTH_SECRET)
 }
 
+export function resolveConversationMode(phone:string, requested:ConversationMode):ConversationMode {
+  const roleplayNumbers=(env.HOTEL_ROLEPLAY_NUMBERS??'').split(',').map(value=>normalizeKoreanNumber(value.trim())).filter(Boolean)
+  return roleplayNumbers.includes(phone)?'hotel_roleplay':requested
+}
+
 function sameText(a: string, b: string) {
   // Compares every character, so a wrong signature is not faster to reject the earlier it differs.
   let diff = a.length ^ b.length

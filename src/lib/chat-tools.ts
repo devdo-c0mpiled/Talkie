@@ -17,7 +17,7 @@ const callRequest = z.object({
   phoneNumber: z.string().meta({ description: 'The Korean phone number the traveler gave, e.g. 02-555-0193. Never guess or look up a number.' }),
   businessName: z.string().meta({ description: 'Name of the business as the traveler gave it, or a short description such as "the clinic"' }),
   purpose: z.string().meta({ description: 'One short sentence in the traveler’s language saying what the call is for. Shown to the traveler before they approve.' }),
-  conversationMode: z.enum(['business_call', 'hotel_roleplay']).default('business_call').meta({ description: 'hotel_roleplay when the user asks the agent to act as hotel staff at their supplied number; business_call when calling actual staff on their behalf. Preserve this mode on subsequent call-first requests.' }),
+  conversationMode: z.enum(['business_call', 'hotel_roleplay']).meta({ description: 'hotel_roleplay when the user asks the agent to act as hotel staff at their supplied number; business_call when calling actual staff on their behalf. Preserve this mode on subsequent call-first requests.' }),
   instructionsKo: z.string().meta({ description: 'Instructions in Korean for the voice agent that makes the call: the purpose, known details, requested conversation role and questions to ask. Dates, guest count, room type and booking name may be unknown; never invent them or require them before an inquiry call.' }),
 })
 export type CallRequest = z.infer<typeof callRequest>

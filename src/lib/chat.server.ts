@@ -4,7 +4,7 @@ import { env } from 'cloudflare:workers'
 import { chat, chatParamsFromRequest, toServerSentEventsResponse } from '@tanstack/ai'
 import { getOpenAiChat } from './ai.server'
 import { CALL_ENDED_MARKER, callBusinessDef, getCallResultDef } from './chat-tools'
-import { callsConfigured, fromCallReference, getCallResult as lookUpCallResult, normalizeKoreanNumber, placeCall, toCallReference } from './clawops.server'
+import { resolveConversationMode, callsConfigured, fromCallReference, getCallResult as lookUpCallResult, normalizeKoreanNumber, placeCall, toCallReference } from './clawops.server'
 
 import {hotelInquiryDef, hotelStatusDef} from './hotel-workflow-tools'
 import {readWorkflow, queryWorkflow, sandboxEnabled} from './hotel-workflow.server'
@@ -41,6 +41,7 @@ const CALLS_PROMPT = `Calling a business
 - Do not invent a test, demo, or rehearsal purpose in the call instructions. Carry the customer’s actual request and distinguish availability inquiries from authorized booking. Normally the Korean agent speaks to hotel staff on the traveler’s behalf. If the user explicitly requests a hotel-staff role-play at their supplied number, allow that role-play and pass that requested role to the voice agent instead of refusing. Never represent a role-play reservation as a real hotel booking.
 - The app asks the traveler to approve each call, so do not ask "shall I call?" yourself: invoke call_business as soon as a number and purpose are known. Do not repeat a request for booking details after an explicit call-first instruction.
 - When the tool returns status "calling", tell the traveler in one sentence that the call is on its way and that you will report back. For "invalid-number", ask them to check the number. For "failed", say the call could not be placed and offer to try again.
+- Preserve reservation durationText/durationDays even when checkout is unknown. Do not collapse a duration into a date. If needsDateConfirmation, ask once whether the customer means 2 nights/3 days or 3 nights; do not ask the year again when already given.
 - The get_call_result reservation object is the persisted outcome. Use its status and fields as the source of truth; never upgrade inquiry/requested/unknown to confirmed.
 - In the post-call summary, prioritize the customer’s latest explicit correction in the transcript: "신규 예약" overrides an earlier change assumption. Do not ask for a number already supplied or ask new-versus-change again after that correction. For hotel_roleplay, summarize the collected request without claiming a real hotel confirmation.
 - When the business explicitly confirms a reservation, tell the traveler in their language that it is confirmed and summarize the confirmed dates, guests and any reference actually provided. If only availability or a pending request was reported, say so clearly.
@@ -58,10 +59,12 @@ const getCallResult = getCallResultDef.server(async ({ call }) => {
 const callBusiness = callBusinessDef.server(async ({ phoneNumber, businessName, instructionsKo, conversationMode }) => {
   const to = normalizeKoreanNumber(phoneNumber)
   if (!to) return { status: 'invalid-number' as const }
+  conversationMode=resolveConversationMode(to,conversationMode)
+  const today=new Intl.DateTimeFormat('en-CA',{timeZone:'Asia/Seoul',year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date())
   const role = conversationMode === 'hotel_roleplay'
     ? '통화 모드: hotel_roleplay. 당신은 호텔 예약 상담원 역할이며 상대는 예약하려는 고객입니다. 고객 대신 호텔에 문의한다는 말을 하지 마세요. 고객이 말하는 신규 예약/변경/취소 의도가 이전 요청보다 우선합니다. 신규 예약을 변경으로 취급하지 마세요. 예약 희망 사항을 한 번에 하나씩 물어보세요.'
     : '통화 모드: business_call. 당신은 고객을 대신해 실제 업장 직원에게 문의하는 AI 전화비서입니다.'
-  const placed = await placeCall(to, `${role}\n업장명: ${businessName}\n요청 사항: ${instructionsKo}`, conversationMode, businessName)
+  const placed = await placeCall(to, `${role}\n한국 기준 현재 날짜: ${today}. 명시된 예약 연도를 유지하세요.\n업장명: ${businessName}\n요청 사항: ${instructionsKo}`, conversationMode, businessName)
   if ('error' in placed) return { status: 'failed' as const, reason: placed.error }
   return { status: 'calling' as const, call: await toCallReference(placed.callId) }
 })

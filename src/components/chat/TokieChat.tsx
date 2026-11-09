@@ -190,6 +190,9 @@ function CallLive({ reference, business, onDone, onActivity }: CallLiveProps) {
       {reservation && <div className="ch-card-meta" aria-label="Reservation result">
         <p>{{inquiry:'Inquiry only',requested:'Request received',confirmed:'Reservation confirmed',changed:'Reservation updated',cancelled:'Reservation cancelled',declined:'Request declined',unknown:'Result unconfirmed'}[reservation.status]}</p>
         {(reservation.checkIn||reservation.checkOut)&&<p>{reservation.checkIn??'—'} → {reservation.checkOut??'—'}</p>}
+        {reservation.durationText&&<p>{reservation.durationText}</p>}
+        {reservation.needsDateConfirmation&&<p>Checkout needs confirmation</p>}
+        {reservation.roomType&&<p>{reservation.roomType}</p>}
         {reservation.guests&&<p>{reservation.guests} guests</p>}
         {reservation.guestName&&<p>{reservation.guestName}</p>}
         {reservation.reservationNumber&&<p>{reservation.reservationNumber}</p>}

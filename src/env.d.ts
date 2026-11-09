@@ -15,6 +15,7 @@ declare namespace Cloudflare {
     CLAWOPS_FROM_NUMBER?: string
     CLAWOPS_AGENT_ID?: string
     CLAWOPS_ROLEPLAY_AGENT_ID?: string
+    HOTEL_ROLEPLAY_NUMBERS?: string
     AI?: Ai
   }
 }
