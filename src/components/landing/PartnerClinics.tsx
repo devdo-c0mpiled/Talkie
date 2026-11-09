@@ -11,13 +11,13 @@ export function PartnerClinics() {
   return (
     <section id="clinics" className="lp-clinics">
       <div className="lp-container">
-        <div className="lp-section-head">
+        <div className="lp-section-head lp-reveal">
           <p className="lp-eyebrow">Partner clinics</p>
           <h2 className="lp-h2">Call any of them now</h2>
         </div>
         <ul className="lp-clinic-grid">
-          {clinics.map(({ name, area, services, phone, languages }) => (
-            <li key={name} className="lp-clinic">
+          {clinics.map(({ name, area, services, phone, languages }, index) => (
+            <li key={name} className={`lp-clinic lp-pop lp-pop--${index + 1}`}>
               <div>
                 <h3 className="lp-clinic-name">{name}</h3>
                 <p className="lp-meta">{area} · {services}</p>

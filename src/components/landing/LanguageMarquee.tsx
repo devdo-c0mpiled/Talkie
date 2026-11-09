@@ -9,7 +9,7 @@ const greetings = [
 
 export function LanguageMarquee() {
   return (
-    <Marquee className="lp-greetings" copies={8} duration={16} decorative>
+    <Marquee className="lp-greetings" copies={8} duration={10} decorative>
       {greetings.map(({ lang, text }) => <span key={lang} lang={lang}>{text}</span>)}
     </Marquee>
   )

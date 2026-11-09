@@ -30,14 +30,14 @@ function SampleCallCard({ lang, language, quote, translation }: SampleCall) {
 export function SampleCalls() {
   return (
     <section className="lp-samples">
-      <div className="lp-container lp-section-head lp-section-head--center">
+      <div className="lp-container lp-section-head lp-section-head--center lp-reveal">
         <p className="lp-eyebrow">Sample calls</p>
         <h2 className="lp-h2">Hear how a call sounds</h2>
       </div>
       <div className="lp-samples-rows">
         {rows.map((row, index) => (
           // Only the first row is exposed to assistive tech; the second repeats it.
-          <Marquee key={index} copies={4} duration={56} reverse={index % 2 === 1} decorative={index > 0}>
+          <Marquee key={index} copies={4} duration={65} reverse={index % 2 === 1} decorative={index > 0}>
             <ul className="lp-sample-list">
               {row.map((call) => <SampleCallCard key={call.quote} {...call} />)}
             </ul>

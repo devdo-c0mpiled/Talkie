@@ -4,7 +4,7 @@ import landingCss from '../landing.css?url'
 import appCss from '../styles.css?url'
 
 const landingFonts =
-  'https://fonts.googleapis.com/css2?family=Inter:wght@500;600;700;800&family=JetBrains+Mono&family=Noto+Sans+Thai:wght@500;700;800&display=swap'
+  'https://fonts.googleapis.com/css2?family=Inter:wght@500;600;700;800&family=JetBrains+Mono&family=Noto+Sans+JP:wght@500;700&family=Noto+Sans+SC:wght@500;700&family=Noto+Sans+Thai:wght@500;700;800&display=swap'
 
 export const Route = createRootRoute({
   head: () => ({
@@ -26,9 +26,9 @@ export const Route = createRootRoute({
 })
 
 function Root() {
-  // The traveler landing at `/` brings its own English header and footer;
+  // The traveler landing at `/` and the business sign-up bring their own English chrome;
   // every other page is a Korean shop page inside the shared shell.
-  const isLanding = useLocation({ select: (location) => location.pathname === '/' })
+  const isLanding = useLocation({ select: (location) => location.pathname === '/' || location.pathname === '/signup' })
 
   return (
     <html lang={isLanding ? 'en' : 'ko'}>
