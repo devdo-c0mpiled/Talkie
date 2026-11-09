@@ -1,0 +1,2 @@
+# 원본 해시를 보존하는 외부 렌더러; PR에서 자체 코드와 구분한다.
+tools/diagrams/vendor/archify/** linguist-vendored
