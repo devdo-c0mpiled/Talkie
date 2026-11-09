@@ -26,9 +26,9 @@ export const Route = createRootRoute({
 })
 
 function Root() {
-  // The traveler landing at `/` brings its own English header and footer;
+  // The traveler landing at `/` and the business sign-up bring their own English chrome;
   // every other page is a Korean shop page inside the shared shell.
-  const isLanding = useLocation({ select: (location) => location.pathname === '/' })
+  const isLanding = useLocation({ select: (location) => location.pathname === '/' || location.pathname === '/signup' })
 
   return (
     <html lang={isLanding ? 'en' : 'ko'}>

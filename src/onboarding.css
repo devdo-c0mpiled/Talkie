@@ -1,0 +1,88 @@
+/* Tokie business onboarding (`/signup`).
+   Source: Figma "VoiceDesk" › 01 Receiving calls › S1 Sign up, node 46:8.
+   The page root is `.lp.ob`, so it inherits the tokens, resets and shared pieces
+   (`lp-logo`, `lp-status`, `lp-btn`) from landing.css; everything new is `ob-`. */
+
+.lp.ob {
+  --ob-muted: #7e8c88;
+
+  display: flex;
+  font-family: 'Noto Sans JP', 'Noto Sans KR', system-ui, -apple-system, 'Segoe UI', sans-serif;
+}
+
+/* ── Sidebar ─────────────────────────────────────────────────── */
+.ob-side { display: flex; flex: 0 0 47%; flex-direction: column; justify-content: space-between; gap: 40px; min-width: 0; padding: 40px 56px; background: var(--lp-night); color: #fff; }
+.ob-side .lp-logo { align-self: flex-start; line-height: 1; }
+.ob-side :focus-visible { outline-color: var(--lp-mist); }
+.ob-side-body { display: flex; flex-direction: column; gap: 36px; }
+.ob-pitch { max-width: 520px; font-size: 44px; line-height: 55px; font-weight: 800; letter-spacing: -1.32px; }
+.ob-side-foot { color: var(--lp-mist); font-size: 13px; line-height: 19.5px; font-weight: 700; }
+
+.ob-call { display: flex; flex-direction: column; gap: 16px; max-width: 480px; padding: 24px; border: 1px solid var(--lp-night-line); border-radius: 24px; background: var(--lp-ink); }
+.ob-call-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.ob-call-who { display: flex; align-items: center; gap: 12px; min-width: 0; }
+.ob-call-flag { display: grid; flex: none; place-items: center; width: 36px; height: 36px; border-radius: 12px; background: var(--lp-night-line); color: var(--lp-mist); font-family: 'Inter', system-ui, sans-serif; font-size: 13px; line-height: 16px; font-weight: 800; }
+.ob-call-title { font-size: 14px; line-height: 21px; font-weight: 700; }
+.ob-call-meta { color: var(--lp-mist); font-size: 13px; line-height: 19.5px; font-weight: 700; }
+.ob-call-quote { display: flex; flex-direction: column; gap: 8px; padding: 16px; border-radius: 16px; background: var(--lp-night-line); font-size: 15px; line-height: 24px; font-weight: 500; }
+.ob-call-quote p:last-child { color: var(--lp-mist); }
+.ob-call-tags { display: flex; flex-wrap: wrap; gap: 8px; }
+.ob-call-tags li { display: flex; align-items: center; height: 32px; padding: 0 12px; border-radius: 999px; background: var(--lp-night-line); color: var(--lp-mist); font-size: 13px; line-height: 13px; font-weight: 700; white-space: nowrap; }
+
+/* ── Form ────────────────────────────────────────────────────── */
+.ob-main { display: flex; flex: 1; align-items: center; justify-content: center; min-width: 0; padding: 40px 24px; }
+.ob-form { display: flex; flex-direction: column; gap: 22px; width: 100%; max-width: 420px; }
+
+.ob-head { display: flex; flex-direction: column; gap: 12px; }
+.ob-progress { display: flex; gap: 6px; }
+.ob-progress i { flex: 1; height: 4px; border-radius: 999px; background: var(--lp-surface-strong); }
+.ob-progress i[data-done] { background: var(--lp-teal); }
+.ob-step { color: var(--lp-slate); font-size: 13px; line-height: 19.5px; font-weight: 700; }
+.ob-head h1 { font-size: 30px; line-height: 41.4px; font-weight: 800; letter-spacing: -0.6px; }
+
+.ob-google { display: flex; align-items: center; justify-content: center; gap: 8px; height: 48px; padding: 0 20px; border-radius: 14px; background: var(--lp-surface-strong); font-size: 15px; line-height: 15px; font-weight: 700; transition: background-color 0.15s; }
+.ob-google:hover { background: var(--lp-border); }
+
+.ob-or { display: flex; align-items: center; gap: 12px; color: var(--ob-muted); font-size: 13px; line-height: 19.5px; font-weight: 700; }
+.ob-or::before, .ob-or::after { content: ''; flex: 1; height: 1px; background: var(--lp-border); }
+
+.ob-field { display: flex; flex-direction: column; gap: 8px; }
+.ob-label { font-size: 14px; line-height: 17px; font-weight: 700; }
+.ob-input { width: 100%; height: 48px; padding: 0 13px; border: 1px solid var(--lp-border); border-radius: 12px; background: #fff; outline: none; font-size: 15px; font-weight: 500; transition: border-color 0.15s, box-shadow 0.15s; }
+.ob-input::placeholder { color: var(--ob-muted); opacity: 1; }
+.ob-input:focus-visible { border-color: var(--lp-teal); box-shadow: 0 0 0 1px var(--lp-teal); outline: none; }
+.ob-hint { color: var(--lp-slate); font-size: 13px; line-height: 19.5px; font-weight: 500; }
+
+.ob-field--country { gap: 10px; margin-top: 2px; }
+.ob-country { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; }
+.ob-country-chip { display: flex; align-items: center; gap: 6px; height: 40px; padding: 0 16px; border-radius: 999px; background: #fff; box-shadow: inset 0 0 0 1px var(--lp-border); font-size: 14px; line-height: 14px; font-weight: 700; white-space: nowrap; }
+
+.ob-submit { height: 56px; padding: 0 24px; border-radius: 16px; font-size: 17px; line-height: 17px; }
+.ob-submit:disabled { opacity: 0.6; cursor: default; }
+.ob-error { color: var(--lp-rose); font-size: 13px; line-height: 19.5px; font-weight: 700; }
+
+.ob-foot { display: flex; flex-direction: column; align-items: center; gap: 12px; margin-top: -2px; text-align: center; }
+.ob-foot a { color: var(--lp-teal); font-weight: 700; text-decoration: underline; }
+.ob-foot a:hover { color: var(--lp-teal-deep); }
+.ob-login { color: var(--lp-slate); font-size: 15px; line-height: 24px; font-weight: 500; }
+.ob-terms { color: var(--ob-muted); font-size: 13px; line-height: 19.5px; font-weight: 500; }
+
+/* ── Smaller screens (the design covers desktop only) ────────── */
+@media (max-width: 1099px) {
+  .ob-side { padding-inline: 40px; }
+  .ob-pitch { font-size: 36px; line-height: 45px; letter-spacing: -1.08px; }
+  .ob-call-head { flex-wrap: wrap; }
+}
+
+@media (max-width: 899px) {
+  .ob { flex-direction: column; }
+  .ob-side { flex: none; padding: 20px 24px; }
+  .ob-side-body, .ob-side-foot { display: none; }
+  .ob-main { align-items: flex-start; padding: 40px 24px 56px; }
+}
+
+@media (max-width: 639px) {
+  .ob-side { padding-inline: 16px; }
+  .ob-main { padding: 32px 16px 48px; }
+  .ob-head h1 { font-size: 26px; line-height: 36px; }
+}
